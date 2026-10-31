@@ -16,7 +16,7 @@ if (fs.existsSync(envPath)) {
 
 const TOKEN = process.env.VERCEL_TOKEN;
 const TEAM_ID = process.env.VERCEL_TEAM_ID || 'team_frfEikpsmDlbqFw5rZyyrHkK';
-const PROJECT_NAME = process.env.VERCEL_PROJECT_NAME || 'rafiqat-el-arousa';
+const PROJECT_NAME = process.env.VERCEL_PROJECT_NAME || 'mshwarna';
 
 if (!TOKEN) {
   console.error('Missing VERCEL_TOKEN in .env.local');
