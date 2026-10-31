@@ -40,6 +40,7 @@ export default function Header({
   isAppInstalled = false,
   onTriggerInstall,
   currentUser = null,
+  isGuestMode = false,
   isSuperAdmin = false,
   isReadOnly = false,
   onOpenAdminDashboard,
@@ -59,28 +60,34 @@ export default function Header({
       ? 'Share with Bride 🔗'
       : t.shareWithFianceBtn;
 
-  // Crescent / Sun Icon-Only Button
-  const ThemeIconButton = () => (
+  // Crescent / Sun Icon-Only Button (Enlarged on mobile for easy finger tap)
+  const ThemeIconButton = ({ isMobile = false }) => (
     <button
       type="button"
       onClick={onToggleTheme}
       aria-label={theme === 'dark' ? t.lightMode : t.darkMode}
       title={theme === 'dark' ? t.lightMode : t.darkMode}
-      className="w-9 h-9 rounded-2xl bg-bridal-surface hover:bg-bridal-roseLight/80 text-bridal-rose border border-bridal-border flex items-center justify-center shadow-2xs active:scale-95 transition-all flex-shrink-0"
+      className={`${
+        isMobile
+          ? 'w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-sm'
+          : 'w-9 h-9 rounded-2xl shadow-2xs'
+      } bg-bridal-surface hover:bg-bridal-roseLight/80 text-bridal-rose border border-bridal-border flex items-center justify-center active:scale-95 transition-all flex-shrink-0`}
     >
       {theme === 'dark' ? (
-        <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-bridal-gold fill-bridal-gold/20" />
+        <Sun className={`${isMobile ? 'w-6 h-6 sm:w-6.5 sm:h-6.5' : 'w-4 h-4 sm:w-5 sm:h-5'} text-bridal-gold fill-bridal-gold/20`} />
       ) : (
-        <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-bridal-rose fill-bridal-rose/15" />
+        <Moon className={`${isMobile ? 'w-6 h-6 sm:w-6.5 sm:h-6.5' : 'w-4 h-4 sm:w-5 sm:h-5'} text-bridal-rose fill-bridal-rose/15`} />
       )}
     </button>
   );
 
-  // Back (Left Arrow), Forward (Right Arrow), and Refresh Controls
-  const HistoryAndRefreshGroup = () => (
+  // Back (Left Arrow), Forward (Right Arrow), and Refresh Controls (Enlarged on mobile)
+  const HistoryAndRefreshGroup = ({ isMobile = false }) => (
     <div
       dir="ltr"
-      className="inline-flex items-center gap-0.5 bg-bridal-surface p-1 rounded-2xl border border-bridal-border shadow-2xs flex-shrink-0"
+      className={`inline-flex items-center ${
+        isMobile ? 'gap-1 p-1.5' : 'gap-0.5 p-1'
+      } bg-bridal-surface rounded-2xl border border-bridal-border shadow-2xs flex-shrink-0`}
     >
       <button
         type="button"
@@ -88,9 +95,11 @@ export default function Header({
         disabled={!canGoBack}
         title={t.navBackTooltip}
         aria-label={t.navBackTooltip}
-        className="w-7 h-7 rounded-xl flex items-center justify-center text-bridal-charcoal hover:bg-bridal-cream disabled:opacity-30 disabled:pointer-events-none transition"
+        className={`${
+          isMobile ? 'w-10 h-10 sm:w-11 sm:h-11 rounded-xl' : 'w-7 h-7 rounded-xl'
+        } flex items-center justify-center text-bridal-charcoal hover:bg-bridal-cream active:scale-90 disabled:opacity-30 disabled:pointer-events-none transition`}
       >
-        <ArrowLeft className="w-4 h-4" />
+        <ArrowLeft className={isMobile ? 'w-5.5 h-5.5 stroke-[2.2]' : 'w-4 h-4'} />
       </button>
 
       <button
@@ -99,24 +108,30 @@ export default function Header({
         disabled={!canGoForward}
         title={t.navForwardTooltip}
         aria-label={t.navForwardTooltip}
-        className="w-7 h-7 rounded-xl flex items-center justify-center text-bridal-charcoal hover:bg-bridal-cream disabled:opacity-30 disabled:pointer-events-none transition"
+        className={`${
+          isMobile ? 'w-10 h-10 sm:w-11 sm:h-11 rounded-xl' : 'w-7 h-7 rounded-xl'
+        } flex items-center justify-center text-bridal-charcoal hover:bg-bridal-cream active:scale-90 disabled:opacity-30 disabled:pointer-events-none transition`}
       >
-        <ArrowRight className="w-4 h-4" />
+        <ArrowRight className={isMobile ? 'w-5.5 h-5.5 stroke-[2.2]' : 'w-4 h-4'} />
       </button>
 
-      <div className="w-px h-4 bg-bridal-border mx-0.5" />
+      <div className={`w-px ${isMobile ? 'h-6 sm:h-7 mx-1' : 'h-4 mx-0.5'} bg-bridal-border`} />
 
       <button
         type="button"
         onClick={onSafeRefresh}
         title={t.navRefreshTooltip}
         aria-label={t.navRefreshTooltip}
-        className="relative w-7 h-7 rounded-xl flex items-center justify-center text-bridal-charcoal hover:bg-bridal-cream hover:text-bridal-rose transition"
+        className={`relative ${
+          isMobile ? 'w-10 h-10 sm:w-11 sm:h-11 rounded-xl' : 'w-7 h-7 rounded-xl'
+        } flex items-center justify-center text-bridal-charcoal hover:bg-bridal-cream hover:text-bridal-rose active:scale-90 transition`}
       >
-        <RotateCw className="w-3.5 h-3.5" />
+        <RotateCw className={isMobile ? 'w-5 h-5 stroke-[2.2]' : 'w-3.5 h-3.5'} />
         {hasUnbackedChanges && (
           <span
-            className="absolute top-1 right-1 w-2 h-2 rounded-full bg-bridal-amber animate-pulse"
+            className={`absolute ${
+              isMobile ? 'top-1.5 right-1.5 w-2.5 h-2.5' : 'top-1 right-1 w-2 h-2'
+            } rounded-full bg-bridal-amber animate-pulse`}
             title={t.unbackedOfflineBadge}
           />
         )}
@@ -159,21 +174,21 @@ export default function Header({
               </div>
             </div>
 
-            {/* Mobile/Tablet Far-End Controls */}
-            <div className="flex xl:hidden items-center gap-1.5 flex-shrink-0">
+            {/* Mobile/Tablet Far-End Controls: Enlarged for comfortable touch targets */}
+            <div className="flex xl:hidden items-center gap-1.5 sm:gap-2 flex-shrink-0">
               {!isAppInstalled && onTriggerInstall && (
                 <button
                   type="button"
                   onClick={() => onTriggerInstall(gender)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-l from-bridal-goldLight to-bridal-roseLight text-bridal-charcoal border border-bridal-gold/60 text-[11px] font-extrabold shadow-2xs active:scale-95 transition whitespace-nowrap"
+                  className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-l from-bridal-goldLight to-bridal-roseLight text-bridal-charcoal border border-bridal-gold/60 text-[11px] font-extrabold shadow-2xs active:scale-95 transition whitespace-nowrap"
                   title={lang === 'ar' ? 'تنزيل التطبيق للموبايل' : 'Install Mobile App'}
                 >
                   <Download className="w-3.5 h-3.5 text-bridal-roseDark animate-bounce flex-shrink-0" />
                   <span>{lang === 'ar' ? 'تنزيل التطبيق' : 'Install'}</span>
                 </button>
               )}
-              <HistoryAndRefreshGroup />
-              <ThemeIconButton />
+              <HistoryAndRefreshGroup isMobile={true} />
+              <ThemeIconButton isMobile={true} />
             </div>
           </div>
 
@@ -276,21 +291,21 @@ export default function Header({
 
               {/* Sign Out / Cloud Account */}
               {!isReadOnly && (onSignOut || onOpenAuthScreen) && (
-                currentUser ? (
+                (currentUser || isGuestMode) ? (
                   <button
                     type="button"
                     onClick={onSignOut}
-                    className="inline-flex items-center gap-1 px-2.5 py-2 rounded-2xl bg-bridal-cream hover:bg-red-500/10 text-bridal-mauve hover:text-red-500 border border-bridal-border text-xs font-bold transition flex-shrink-0 whitespace-nowrap"
-                    title="تسجيل الخروج"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 dark:bg-red-950/40 dark:hover:bg-red-900/50 dark:text-red-400 dark:border-red-900/60 text-xs font-bold transition flex-shrink-0 whitespace-nowrap shadow-xs active:scale-95"
+                    title={lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
                   >
-                    <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="hidden 2xl:inline">خروج</span>
+                    <LogOut className="w-3.5 h-3.5 flex-shrink-0 text-red-600 dark:text-red-400" />
+                    <span className="font-extrabold">{lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}</span>
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={onOpenAuthScreen}
-                    className="inline-flex items-center gap-1 px-2.5 py-2 rounded-2xl bg-bridal-roseLight text-bridal-roseDark border border-bridal-rose/30 text-xs font-extrabold transition flex-shrink-0 whitespace-nowrap"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-bridal-roseLight text-bridal-roseDark border border-bridal-rose/30 text-xs font-extrabold transition flex-shrink-0 whitespace-nowrap"
                     title="تسجيل الدخول لحفظ جهازك سحابياً"
                   >
                     <LogIn className="w-3.5 h-3.5 flex-shrink-0" />

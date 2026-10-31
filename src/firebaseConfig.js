@@ -1,7 +1,12 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentSingleTabManager,
+  getFirestore
+} from "firebase/firestore";
 
 export const firebaseConfig = {
   apiKey: "AIzaSyACL0Z82kRhbdcshcB40d6PEI6bmZWYGaM",
@@ -18,10 +23,27 @@ export const SUPER_ADMIN_EMAIL = "mohameddmm027@gmail.com";
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-
-// Enable Firestore with offline persistence so it works seamlessly inside markets with weak signal
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+googleProvider.setCustomParameters({
+  prompt: "select_account"
 });
 
-isSupported().then((yes) => yes && getAnalytics(app));
+// Initialize Firestore with fast single-tab persistent local cache to prevent multi-tab Web Lock freezing on mobile browsers
+let firestoreDb;
+try {
+  firestoreDb = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+  });
+} catch {
+  try {
+    firestoreDb = getFirestore(app);
+  } catch {
+    firestoreDb = null;
+  }
+}
+
+export const db = firestoreDb;
+
+// Analytics runs non-blocking in background
+if (typeof window !== "undefined") {
+  isSupported().then((yes) => yes && getAnalytics(app)).catch(() => {});
+}

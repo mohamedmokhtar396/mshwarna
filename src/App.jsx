@@ -52,22 +52,25 @@ import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import CategoryView from './components/CategoryView';
 import ShoppingMode from './components/ShoppingMode';
-import BackupManager from './components/BackupManager';
-import PrintReport from './components/PrintReport';
 import ItemModal from './components/ItemModal';
 import CategoryModal from './components/CategoryModal';
 import AuthScreen from './components/AuthScreen';
-import AdminDashboard from './components/AdminDashboard';
-import ShareShowcaseModal from './components/ShareShowcaseModal';
-import ImageLightbox from './components/ImageLightbox';
-import ShareFianceModal from './components/ShareFianceModal';
-import FianceSharedView from './components/FianceSharedView';
 import RefreshSafetyModal from './components/RefreshSafetyModal';
-import InstallAppModal, { detectMobilePlatform } from './components/InstallAppModal';
-import FinishingLedger from './components/FinishingLedger';
-import EngineerSharedView from './components/EngineerSharedView';
-import CoupleRoomView from './components/CoupleRoomView';
-import SmartBudgetModal from './components/SmartBudgetModal';
+import { detectMobilePlatform } from './utils/mobilePlatform';
+
+// Code-split heavy modals and sub-views via React.lazy for sub-500ms initial mobile load
+const BackupManager = React.lazy(() => import('./components/BackupManager'));
+const PrintReport = React.lazy(() => import('./components/PrintReport'));
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
+const FinishingLedger = React.lazy(() => import('./components/FinishingLedger'));
+const CoupleRoomView = React.lazy(() => import('./components/CoupleRoomView'));
+const SmartBudgetModal = React.lazy(() => import('./components/SmartBudgetModal'));
+const ShareShowcaseModal = React.lazy(() => import('./components/ShareShowcaseModal'));
+const ShareFianceModal = React.lazy(() => import('./components/ShareFianceModal'));
+const ImageLightbox = React.lazy(() => import('./components/ImageLightbox'));
+const InstallAppModal = React.lazy(() => import('./components/InstallAppModal'));
+const FianceSharedView = React.lazy(() => import('./components/FianceSharedView'));
+const EngineerSharedView = React.lazy(() => import('./components/EngineerSharedView'));
 
 export default function App() {
   const [isDbReady, setIsDbReady] = useState(false);
@@ -251,20 +254,24 @@ export default function App() {
     };
   }, [showcaseId, engineerShareId]);
 
-  // 3. Listen to Firebase Authentication State
+  // 3. Listen to Firebase Authentication State (Instant non-blocking for mobile)
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, async (user) => {
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user || null);
       if (user) {
         setIsGuestMode(false);
-        await initializeUserCloudProfile(user);
         setActiveTargetUid((prev) => prev || user.uid);
+        setIsAuthChecking(false);
+        // Non-blocking cloud profile verification in the background
+        initializeUserCloudProfile(user).catch((err) =>
+          console.warn('Background profile init warning:', err)
+        );
       } else {
         setActiveTargetUid(null);
         setImpersonatedBride(null);
         setActiveCloudUid(null);
+        setIsAuthChecking(false);
       }
-      setIsAuthChecking(false);
     });
     return () => unsubAuth();
   }, []);
@@ -766,33 +773,37 @@ export default function App() {
   // Engineer Shared Ledger View (Requires ZERO Registration!)
   if (engineerLedgerSharedData) {
     return (
-      <EngineerSharedView
-        ledgerData={engineerLedgerSharedData}
-        onExitPreview={() => {
-          setEngineerLedgerSharedData(null);
-          setEngineerShareId(null);
-          const url = new URL(window.location.href);
-          url.searchParams.delete('engineer_ledger');
-          window.history.replaceState(null, '', url.pathname);
-        }}
-      />
+      <React.Suspense fallback={<div className="min-h-screen bg-bridal-bg flex items-center justify-center p-6 text-bridal-mauve font-bold">جاري تحميل كشف حساب المهندس... 📐</div>}>
+        <EngineerSharedView
+          ledgerData={engineerLedgerSharedData}
+          onExitPreview={() => {
+            setEngineerLedgerSharedData(null);
+            setEngineerShareId(null);
+            const url = new URL(window.location.href);
+            url.searchParams.delete('engineer_ledger');
+            window.history.replaceState(null, '', url.pathname);
+          }}
+        />
+      </React.Suspense>
     );
   }
 
   // Fiancé Shared Guest View (Requires ZERO Registration!)
   if (fianceSharedData) {
     return (
-      <FianceSharedView
-        shareData={fianceSharedData}
-        lang={lang}
-        onExitPreview={() => {
-          setFianceSharedData(null);
-          if (window.location.hash.startsWith('#share=')) {
-            window.history.replaceState(null, '', window.location.pathname);
-          }
-        }}
-        onSaveLocalSuggestions={handleImportFianceReply}
-      />
+      <React.Suspense fallback={<div className="min-h-screen bg-bridal-bg flex items-center justify-center p-6 text-bridal-mauve font-bold">جاري تحميل المعاينة... 💍</div>}>
+        <FianceSharedView
+          shareData={fianceSharedData}
+          lang={lang}
+          onExitPreview={() => {
+            setFianceSharedData(null);
+            if (window.location.hash.startsWith('#share=')) {
+              window.history.replaceState(null, '', window.location.pathname);
+            }
+          }}
+          onSaveLocalSuggestions={handleImportFianceReply}
+        />
+      </React.Suspense>
     );
   }
 
@@ -837,15 +848,19 @@ export default function App() {
           onTriggerInstall={handleInstallButtonClick}
           isAppInstalled={isAppInstalled}
         />
-        <InstallAppModal
-          isOpen={isInstallModalOpen}
-          onClose={() => setIsInstallModalOpen(false)}
-          installPromptEvent={installPromptEvent}
-          onTriggerNativeInstall={handleTriggerNativeInstall}
-          lang={lang}
-          gender={installModalGender || gender}
-          onChangeGenderIcon={(nextG) => setInstallModalGender(nextG)}
-        />
+        {isInstallModalOpen && (
+          <React.Suspense fallback={null}>
+            <InstallAppModal
+              isOpen={isInstallModalOpen}
+              onClose={() => setIsInstallModalOpen(false)}
+              installPromptEvent={installPromptEvent}
+              onTriggerNativeInstall={handleTriggerNativeInstall}
+              lang={lang}
+              gender={installModalGender || gender}
+              onChangeGenderIcon={(nextG) => setInstallModalGender(nextG)}
+            />
+          </React.Suspense>
+        )}
       </>
     );
   }
@@ -853,14 +868,16 @@ export default function App() {
   // Dedicated Print View
   if (activeTab === 'print') {
     return (
-      <PrintReport
-        lang={lang}
-        categories={categories}
-        items={items}
-        settings={settings}
-        defaultDocType={printDefaultDocType}
-        onClose={() => setActiveTab('dashboard')}
-      />
+      <React.Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center p-8 text-bridal-mauve font-bold">جاري إعداد كشف الطباعة... 🖨️</div>}>
+        <PrintReport
+          lang={lang}
+          categories={categories}
+          items={items}
+          settings={settings}
+          defaultDocType={printDefaultDocType}
+          onClose={() => setActiveTab('dashboard')}
+        />
+      </React.Suspense>
     );
   }
 
@@ -913,7 +930,7 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-bridal-bg flex flex-col pb-20 md:pb-6 transition-colors">
+    <div className="min-h-screen bg-bridal-bg flex flex-col pb-32 md:pb-6 transition-colors">
       {/* 1. Public Read-Only Showcase Banner (?showcase={shareId}) */}
       {isReadOnly && showcaseData && (
         <div
@@ -1000,6 +1017,7 @@ export default function App() {
         isAppInstalled={isAppInstalled}
         onTriggerInstall={handleInstallButtonClick}
         currentUser={currentUser}
+        isGuestMode={isGuestMode}
         isSuperAdmin={isSuperAdmin && !isReadOnly}
         isReadOnly={isReadOnly}
         onOpenAdminDashboard={() => setActiveTab('admin')}
@@ -1205,16 +1223,18 @@ export default function App() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2 }}
             >
-              <FinishingLedger
-                lang={lang}
-                settings={settings}
-                onUpdateSettings={updateAppSettings}
-                onOpenLightbox={handleOpenLightbox}
-                onPreviewEngineerView={(ledgerPayload) =>
-                  setEngineerLedgerSharedData(ledgerPayload)
-                }
-                isReadOnly={isReadOnly}
-              />
+              <React.Suspense fallback={<div className="p-12 text-center text-bridal-mauve font-bold">جاري تحميل كشف التشطيبات... 📐</div>}>
+                <FinishingLedger
+                  lang={lang}
+                  settings={settings}
+                  onUpdateSettings={updateAppSettings}
+                  onOpenLightbox={handleOpenLightbox}
+                  onPreviewEngineerView={(ledgerPayload) =>
+                    setEngineerLedgerSharedData(ledgerPayload)
+                  }
+                  isReadOnly={isReadOnly}
+                />
+              </React.Suspense>
             </motion.div>
           )}
 
@@ -1226,16 +1246,18 @@ export default function App() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2 }}
             >
-              <CoupleRoomView
-                settings={settings}
-                items={items}
-                onUpdateSettings={updateAppSettings}
-                onOpenPrintQayma={() => {
-                  setPrintDefaultDocType('qayma');
-                  setActiveTab('print');
-                }}
-                isReadOnly={isReadOnly}
-              />
+              <React.Suspense fallback={<div className="p-12 text-center text-bridal-mauve font-bold">جاري تحميل غرفة العروسين... 💍</div>}>
+                <CoupleRoomView
+                  settings={settings}
+                  items={items}
+                  onUpdateSettings={updateAppSettings}
+                  onOpenPrintQayma={() => {
+                    setPrintDefaultDocType('qayma');
+                    setActiveTab('print');
+                  }}
+                  isReadOnly={isReadOnly}
+                />
+              </React.Suspense>
             </motion.div>
           )}
 
@@ -1247,18 +1269,20 @@ export default function App() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2 }}
             >
-              <BackupManager
-                lang={lang}
-                categories={categories}
-                items={items}
-                settings={settings}
-                isStoragePersisted={isStoragePersisted}
-                onOpenPrintReport={() => setActiveTab('print')}
-                onOpenShareShowcase={
-                  !isReadOnly ? () => setIsShareModalOpen(true) : undefined
-                }
-                isReadOnly={isReadOnly}
-              />
+              <React.Suspense fallback={<div className="p-12 text-center text-bridal-mauve font-bold">جاري تحميل النسخ الاحتياطي... 💾</div>}>
+                <BackupManager
+                  lang={lang}
+                  categories={categories}
+                  items={items}
+                  settings={settings}
+                  isStoragePersisted={isStoragePersisted}
+                  onOpenPrintReport={() => setActiveTab('print')}
+                  onOpenShareShowcase={
+                    !isReadOnly ? () => setIsShareModalOpen(true) : undefined
+                  }
+                  isReadOnly={isReadOnly}
+                />
+              </React.Suspense>
             </motion.div>
           )}
 
@@ -1270,20 +1294,22 @@ export default function App() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2 }}
             >
-              <AdminDashboard
-                currentUser={currentUser}
-                activeTargetUid={activeTargetUid}
-                onImpersonateBride={handleImpersonateBride}
-                onPrintBrideReport={handlePrintBrideReport}
-              />
+              <React.Suspense fallback={<div className="p-12 text-center text-bridal-mauve font-bold">جاري فتح لوحة الإدارة... 🛡️</div>}>
+                <AdminDashboard
+                  currentUser={currentUser}
+                  activeTargetUid={activeTargetUid}
+                  onImpersonateBride={handleImpersonateBride}
+                  onPrintBrideReport={handlePrintBrideReport}
+                />
+              </React.Suspense>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
-      {/* Sticky Bottom Navigation Bar for Mobile */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-bridal-surface/95 backdrop-blur-md border-t border-bridal-border px-1.5 py-1.5 shadow-bridal-lg no-print transition-colors">
-        <div className="flex items-center justify-between gap-1 overflow-x-auto no-scrollbar max-w-lg mx-auto">
+      {/* Sticky Bottom Navigation Bar for Mobile (Enlarged Upwards & Spacious for Easy Tapping) */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-bridal-surface/95 backdrop-blur-xl border-t border-bridal-border/90 pt-2.5 pb-[max(0.9rem,env(safe-area-inset-bottom))] px-2.5 shadow-[0_-8px_25px_-5px_rgba(0,0,0,0.08)] dark:shadow-[0_-8px_25px_-5px_rgba(0,0,0,0.45)] no-print transition-colors">
+        <div className="flex items-center justify-around gap-1.5 max-w-md mx-auto">
           {navItems.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1292,18 +1318,18 @@ export default function App() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex-1 min-w-[58px] flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all ${
+                className={`relative flex-1 min-h-[62px] flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition-all active:scale-95 ${
                   isActive
-                    ? 'bg-bridal-roseLight text-bridal-roseDark font-extrabold'
-                    : 'text-bridal-mauve font-medium hover:text-bridal-charcoal'
+                    ? 'bg-gradient-to-b from-bridal-roseLight to-bridal-roseLight/80 text-bridal-roseDark font-extrabold shadow-2xs border border-bridal-rose/30'
+                    : 'text-bridal-mauve hover:text-bridal-charcoal hover:bg-bridal-cream/60 font-bold'
                 }`}
               >
-                <Icon className="w-5 h-5 mb-0.5" />
-                <span className="text-[10px] leading-tight truncate w-full text-center">
+                <Icon className={`w-6 h-6 mb-1 transition-transform ${isActive ? 'scale-110' : ''}`} />
+                <span className="text-xs sm:text-[13px] leading-tight truncate w-full text-center font-bold">
                   {tab.label}
                 </span>
                 {tab.badge && (
-                  <span className="absolute top-1 left-2 bg-bridal-rose text-white text-[9px] font-bold px-1.5 rounded-full">
+                  <span className="absolute top-1 right-2 sm:right-3 bg-bridal-rose text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full shadow-xs border border-white dark:border-bridal-surface">
                     {tab.badge}
                   </span>
                 )}
@@ -1339,43 +1365,71 @@ export default function App() {
         />
       )}
 
-      {/* Share Read-Only Showcase Modal */}
-      {!isReadOnly && (
-        <ShareShowcaseModal
-          isOpen={isShareModalOpen}
-          onClose={() => setIsShareModalOpen(false)}
-          targetUid={activeTargetUid}
-          defaultBrideName={settings?.brideName || 'أحلى عروسة'}
-          currentUser={currentUser}
-        />
-      )}
+      {/* Lazy Modals loaded on-demand */}
+      <React.Suspense fallback={null}>
+        {/* Share Read-Only Showcase Modal */}
+        {!isReadOnly && isShareModalOpen && (
+          <ShareShowcaseModal
+            isOpen={isShareModalOpen}
+            onClose={() => setIsShareModalOpen(false)}
+            targetUid={activeTargetUid}
+            defaultBrideName={settings?.brideName || 'أحلى عروسة'}
+            currentUser={currentUser}
+          />
+        )}
 
-      {/* Share with Fiancé Modal */}
-      {!isReadOnly && (
-        <ShareFianceModal
-          isOpen={isShareFianceModalOpen}
-          onClose={() => setIsShareFianceModalOpen(false)}
-          lang={lang}
-          categories={categories}
-          items={items}
-          settings={settings}
-          onPreviewFianceMode={(payload) => {
-            setIsShareFianceModalOpen(false);
-            setFianceSharedData(payload);
-          }}
-          onImportFianceReply={handleImportFianceReply}
-        />
-      )}
+        {/* Share with Fiancé Modal */}
+        {!isReadOnly && isShareFianceModalOpen && (
+          <ShareFianceModal
+            isOpen={isShareFianceModalOpen}
+            onClose={() => setIsShareFianceModalOpen(false)}
+            lang={lang}
+            categories={categories}
+            items={items}
+            settings={settings}
+            onPreviewFianceMode={(payload) => {
+              setIsShareFianceModalOpen(false);
+              setFianceSharedData(payload);
+            }}
+            onImportFianceReply={handleImportFianceReply}
+          />
+        )}
 
-      {/* Fullscreen Image & Invoice Lightbox */}
-      <ImageLightbox
-        isOpen={lightboxState.isOpen}
-        images={lightboxState.images}
-        currentIndex={lightboxState.currentIndex}
-        title={lightboxState.title}
-        onClose={() => setLightboxState((prev) => ({ ...prev, isOpen: false }))}
-        onDeleteImage={lightboxState.itemId ? handleDeleteLightboxImage : undefined}
-      />
+        {/* Fullscreen Image & Invoice Lightbox */}
+        {lightboxState.isOpen && (
+          <ImageLightbox
+            isOpen={lightboxState.isOpen}
+            images={lightboxState.images}
+            currentIndex={lightboxState.currentIndex}
+            title={lightboxState.title}
+            onClose={() => setLightboxState((prev) => ({ ...prev, isOpen: false }))}
+            onDeleteImage={lightboxState.itemId ? handleDeleteLightboxImage : undefined}
+          />
+        )}
+
+        {/* Mobile App Download / Install Steps Modal (iOS & Android) */}
+        {isInstallModalOpen && (
+          <InstallAppModal
+            isOpen={isInstallModalOpen}
+            onClose={() => setIsInstallModalOpen(false)}
+            installPromptEvent={installPromptEvent}
+            onTriggerNativeInstall={handleTriggerNativeInstall}
+            lang={lang}
+            gender={installModalGender || gender}
+            onChangeGenderIcon={(nextG) => setInstallModalGender(nextG)}
+          />
+        )}
+
+        {/* Smart Budget Allocation Calculator Modal */}
+        {isSmartBudgetOpen && (
+          <SmartBudgetModal
+            isOpen={isSmartBudgetOpen}
+            onClose={() => setIsSmartBudgetOpen(false)}
+            settings={settings}
+            onApplyBudget={(newTotal) => updateAppSettings({ totalBudget: newTotal })}
+          />
+        )}
+      </React.Suspense>
 
       {/* Safe Refresh Warning Modal */}
       <RefreshSafetyModal
@@ -1385,25 +1439,6 @@ export default function App() {
         onClose={() => setIsRefreshWarningOpen(false)}
         onDownloadBackupAndRefresh={handleDownloadBackupAndRefresh}
         onRefreshAnyway={() => window.location.reload()}
-      />
-
-      {/* Mobile App Download / Install Steps Modal (iOS & Android) */}
-      <InstallAppModal
-        isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
-        installPromptEvent={installPromptEvent}
-        onTriggerNativeInstall={handleTriggerNativeInstall}
-        lang={lang}
-        gender={installModalGender || gender}
-        onChangeGenderIcon={(nextG) => setInstallModalGender(nextG)}
-      />
-
-      {/* Smart Budget Allocation Calculator Modal */}
-      <SmartBudgetModal
-        isOpen={isSmartBudgetOpen}
-        onClose={() => setIsSmartBudgetOpen(false)}
-        settings={settings}
-        onApplyBudget={(newTotal) => updateAppSettings({ totalBudget: newTotal })}
       />
     </div>
   );

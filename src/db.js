@@ -206,9 +206,76 @@ export function deriveUserAuthDetails(firebaseUser, extraMeta = {}) {
 }
 
 /**
+ * Helper to sanitize items for Cloud Firestore (ensuring base64 photos do not exceed 1MB document limit)
+ */
+function sanitizeItemsForCloud(items = []) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => {
+    const cleanImages = Array.isArray(item.images)
+      ? item.images.map((img) => ({
+          id: img.id,
+          name: img.name || '',
+          createdAt: img.createdAt || '',
+          // Only keep small image dataUrls in the cloud doc, strip huge base64 strings so Firestore limit is NEVER breached
+          dataUrl: img.dataUrl && img.dataUrl.length < 35000 ? img.dataUrl : ''
+        }))
+      : [];
+
+    const cleanInvoices = Array.isArray(item.invoiceImages)
+      ? item.invoiceImages.map((img) => ({
+          id: img.id,
+          name: img.name || '',
+          createdAt: img.createdAt || '',
+          dataUrl: img.dataUrl && img.dataUrl.length < 35000 ? img.dataUrl : ''
+        }))
+      : [];
+
+    return {
+      ...item,
+      images: cleanImages,
+      invoiceImages: cleanInvoices
+    };
+  });
+}
+
+/**
+ * Merge cloud items into local Dexie, preserving full-res local images
+ */
+function mergeCloudItemsWithLocal(cloudItems = [], localItems = []) {
+  if (!Array.isArray(cloudItems) || cloudItems.length === 0) return localItems;
+  const localMap = new Map((localItems || []).map((i) => [i.id, i]));
+
+  return cloudItems.map((cItem) => {
+    const lItem = localMap.get(cItem.id);
+    if (!lItem) return cItem;
+
+    // If local has full dataUrls for images, keep them
+    const mergedImages = (cItem.images || []).map((cImg) => {
+      const lImg = (lItem.images || []).find((li) => li.id === cImg.id);
+      return lImg?.dataUrl ? lImg : cImg;
+    });
+
+    const mergedInvoices = (cItem.invoiceImages || []).map((cInv) => {
+      const lInv = (lItem.invoiceImages || []).find((li) => li.id === cInv.id);
+      return lInv?.dataUrl ? lInv : cInv;
+    });
+
+    return {
+      ...cItem,
+      images: mergedImages.length > 0 ? mergedImages : lItem.images || [],
+      invoiceImages: mergedInvoices.length > 0 ? mergedInvoices : lItem.invoiceImages || []
+    };
+  });
+}
+
+/**
  * Helper to write a target user's categories, items, and settings into local Dexie
  */
 async function writeSnapshotToDexie({ categories, items, settings, profileFallback = {} }) {
+  const currentLocalItems = await db.items.toArray();
+  const currentLocalCats = await db.categories.toArray();
+  const currentSettings = (await db.settings.get('app-settings')) || defaultSettings;
+
   const effectiveName =
     settings?.brideName &&
     settings.brideName !== 'Lovely Bride' &&
@@ -217,45 +284,63 @@ async function writeSnapshotToDexie({ categories, items, settings, profileFallba
       ? settings.brideName
       : profileFallback?.brideName ||
         profileFallback?.displayName ||
-        settings?.brideName ||
+        currentSettings.brideName ||
         'أحلى عروسة';
 
   const effectiveGender =
     settings?.gender ||
     profileFallback?.gender ||
+    currentSettings.gender ||
     detectGenderFromName(effectiveName, profileFallback?.email || '');
 
   const isMale = effectiveGender === 'male';
   const defaultCats = isMale ? groomInitialCategories : initialCategories;
   const defaultItms = isMale ? groomInitialItems : initialItems;
 
-  const finalCategories =
-    Array.isArray(categories) && categories.length > 0 ? categories : defaultCats;
-  const finalItems =
-    Array.isArray(items) && items.length > 0 ? items : defaultItms;
+  const hasNewItems = Array.isArray(items) && items.length > 0;
+  const hasNewCats = Array.isArray(categories) && categories.length > 0;
+
+  // Never wipe items if cloud didn't provide a valid items array
+  const finalCategories = hasNewCats
+    ? categories
+    : currentLocalCats.length > 0
+    ? currentLocalCats
+    : defaultCats;
+
+  const finalItems = hasNewItems
+    ? mergeCloudItemsWithLocal(items, currentLocalItems)
+    : currentLocalItems.length > 0
+    ? currentLocalItems
+    : defaultItms;
 
   const finalSettings = {
     ...defaultSettings,
+    ...currentSettings,
     ...(settings || {}),
     id: 'app-settings',
-    language: settings?.language || 'ar',
+    language: settings?.language || currentSettings.language || 'ar',
     gender: effectiveGender,
     brideName: effectiveName,
-    phoneNumber: settings?.phoneNumber || profileFallback?.phoneNumber || '',
-    weddingDate: settings?.weddingDate || profileFallback?.weddingDate || '',
+    phoneNumber: settings?.phoneNumber || profileFallback?.phoneNumber || currentSettings.phoneNumber || '',
+    weddingDate: settings?.weddingDate || profileFallback?.weddingDate || currentSettings.weddingDate || '',
     totalBudget:
       Number(settings?.totalBudget) ||
       Number(profileFallback?.totalBudget) ||
+      Number(currentSettings.totalBudget) ||
       300000
   };
 
   try {
     isApplyingRemoteSnapshot = true;
     await db.transaction('rw', db.categories, db.items, db.settings, async () => {
-      await db.categories.clear();
-      await db.items.clear();
-      await db.categories.bulkPut(finalCategories);
-      await db.items.bulkPut(finalItems);
+      if (hasNewCats || currentLocalCats.length === 0) {
+        await db.categories.clear();
+        await db.categories.bulkPut(finalCategories);
+      }
+      if (hasNewItems || currentLocalItems.length === 0) {
+        await db.items.clear();
+        await db.items.bulkPut(finalItems);
+      }
       await db.settings.put(finalSettings);
     });
   } catch (e) {
@@ -273,7 +358,7 @@ export async function syncCurrentDexieToCloud(uidOverride = null) {
   if (!targetUid || isApplyingRemoteSnapshot || isReadOnlyMode) return;
 
   try {
-    const [categories, items, settings] = await Promise.all([
+    const [categories, rawItems, settings] = await Promise.all([
       db.categories.orderBy('order').toArray(),
       db.items.toArray(),
       db.settings.get('app-settings')
@@ -289,7 +374,8 @@ export async function syncCurrentDexieToCloud(uidOverride = null) {
       lastUpdated: nowIso
     };
 
-    const metrics = calculateTrousseauMetrics(items, cleanSettings);
+    const metrics = calculateTrousseauMetrics(rawItems, cleanSettings);
+    const sanitizedItems = sanitizeItemsForCloud(rawItems);
 
     const trousseauRef = doc(firestoreDb, 'users', targetUid, 'data', 'trousseau');
     const userDocRef = doc(firestoreDb, 'users', targetUid);
@@ -300,41 +386,37 @@ export async function syncCurrentDexieToCloud(uidOverride = null) {
         ? cleanSettings.brideName
         : activeUserMeta.brideName || cleanSettings.brideName || 'أحلى عروسة';
 
-    // Save to top-level user doc (including categories/items/settings so it always works even if subcollections are restricted)
-    const userDocPromise = setDoc(
-      userDocRef,
-      {
-        uid: targetUid,
-        brideName: resolvedName,
-        gender: cleanSettings.gender || activeUserMeta.gender || 'female',
-        ...(cleanSettings.phoneNumber ? { phoneNumber: cleanSettings.phoneNumber } : {}),
-        ...(cleanSettings.partnerCode ? { partnerCode: cleanSettings.partnerCode } : {}),
-        ...(cleanSettings.linkedPartnerUid
-          ? { linkedPartnerUid: cleanSettings.linkedPartnerUid }
-          : {}),
-        weddingDate: cleanSettings.weddingDate || '',
-        totalBudget: metrics.totalBudget,
-        totalSpent: metrics.totalSpent,
-        totalCashPaid: metrics.totalCashPaid,
-        totalRemainingDebt: metrics.totalRemainingDebt,
-        totalItemsCount: metrics.totalItemsCount,
-        purchasedItemsCount: metrics.purchasedItemsCount,
-        priorityItemsCount: metrics.priorityItemsCount,
-        completionPercentage: metrics.completionPercentage,
-        categories,
-        items,
-        settings: cleanSettings,
-        updatedAt: nowIso,
-        lastActiveAt: nowIso
-      },
-      { merge: true }
-    );
+    const userProfilePayload = {
+      uid: targetUid,
+      brideName: resolvedName,
+      gender: cleanSettings.gender || activeUserMeta.gender || 'female',
+      ...(cleanSettings.phoneNumber ? { phoneNumber: cleanSettings.phoneNumber } : {}),
+      ...(cleanSettings.partnerCode ? { partnerCode: cleanSettings.partnerCode } : {}),
+      ...(cleanSettings.linkedPartnerUid
+        ? { linkedPartnerUid: cleanSettings.linkedPartnerUid }
+        : {}),
+      weddingDate: cleanSettings.weddingDate || '',
+      totalBudget: metrics.totalBudget,
+      totalSpent: metrics.totalSpent,
+      totalCashPaid: metrics.totalCashPaid,
+      totalRemainingDebt: metrics.totalRemainingDebt,
+      totalItemsCount: metrics.totalItemsCount,
+      purchasedItemsCount: metrics.purchasedItemsCount,
+      priorityItemsCount: metrics.priorityItemsCount,
+      completionPercentage: metrics.completionPercentage,
+      categories,
+      items: sanitizedItems,
+      settings: cleanSettings,
+      updatedAt: nowIso,
+      lastActiveAt: nowIso
+    };
 
+    const userDocPromise = setDoc(userDocRef, userProfilePayload, { merge: true });
     const trousseauDocPromise = setDoc(
       trousseauRef,
       {
         categories,
-        items,
+        items: sanitizedItems,
         settings: cleanSettings,
         updatedAt: nowIso
       },
@@ -361,164 +443,181 @@ export async function initializeUserCloudProfile(firebaseUser, extraMeta = {}) {
   const trousseauRef = doc(firestoreDb, 'users', uid, 'data', 'trousseau');
 
   try {
-    const [userSnap, trousseauSnap] = await Promise.all([
-      getDoc(userDocRef).catch(() => null),
-      getDoc(trousseauRef).catch(() => null)
-    ]);
+    let userSnap = null;
+    let trousseauSnap = null;
+
+    try {
+      [userSnap, trousseauSnap] = await Promise.all([
+        getDoc(userDocRef),
+        getDoc(trousseauRef)
+      ]);
+    } catch (readErr) {
+      console.warn('Firestore read delayed/offline in initializeUserCloudProfile:', readErr);
+    }
 
     const existingUser = userSnap && userSnap.exists() ? userSnap.data() : null;
     const existingTrousseau =
       trousseauSnap && trousseauSnap.exists() ? trousseauSnap.data() : null;
 
+    // Check if cloud has valid items
+    const cloudItems =
+      (Array.isArray(existingTrousseau?.items) && existingTrousseau.items.length > 0 && existingTrousseau.items) ||
+      (Array.isArray(existingUser?.items) && existingUser.items.length > 0 && existingUser.items) ||
+      null;
+
+    const cloudCategories =
+      (Array.isArray(existingTrousseau?.categories) && existingTrousseau.categories.length > 0 && existingTrousseau.categories) ||
+      (Array.isArray(existingUser?.categories) && existingUser.categories.length > 0 && existingUser.categories) ||
+      null;
+
     const effectiveGender =
-      extraMeta.gender ||
       existingTrousseau?.settings?.gender ||
       existingUser?.settings?.gender ||
       existingUser?.gender ||
+      extraMeta.gender ||
       userDetails.gender ||
       'female';
 
     const isMale = effectiveGender === 'male';
-    let categoriesToUse = isMale ? groomInitialCategories : initialCategories;
-    let itemsToUse = isMale ? groomInitialItems : initialItems;
-    const defaultPartnerCode =
-      existingUser?.partnerCode ||
-      existingTrousseau?.settings?.partnerCode ||
-      `MSH-${uid.slice(0, 4).toUpperCase()}`;
+    const defaultCats = isMale ? groomInitialCategories : initialCategories;
+    const defaultItms = isMale ? groomInitialItems : initialItems;
 
-    let settingsToUse = {
-      ...defaultSettings,
-      language: 'ar',
-      gender: effectiveGender,
-      partnerCode: defaultPartnerCode,
-      linkedPartnerUid:
-        existingTrousseau?.settings?.linkedPartnerUid ||
-        existingUser?.linkedPartnerUid ||
-        '',
-      brideName:
-        extraMeta.brideName ||
-        existingUser?.brideName ||
-        userDetails.brideName ||
-        (isMale ? 'أحلى عريس' : 'أحلى عروسة'),
-      phoneNumber:
-        extraMeta.phoneNumber ||
-        existingUser?.phoneNumber ||
-        userDetails.phoneNumber ||
-        '',
-      weddingDate:
-        extraMeta.weddingDate ||
-        existingUser?.weddingDate ||
-        '',
-      totalBudget:
-        extraMeta.totalBudget !== undefined
-          ? parseArabicNumber(extraMeta.totalBudget) || 300000
-          : existingUser?.totalBudget || 300000,
-      lastUpdated: nowIso
-    };
+    // Check local Dexie state
+    const localItems = await db.items.toArray();
+    const localCats = await db.categories.toArray();
+    const hasCustomLocalItems = localItems.some(
+      (i) => i.isPurchased || Number(i.actualPrice) > 0 || Number(i.paidAmount) > 0 || (i.id && i.id.startsWith('item-custom'))
+    );
 
-    const sourceData =
-      existingTrousseau &&
-      Array.isArray(existingTrousseau.categories) &&
-      existingTrousseau.categories.length > 0
-        ? existingTrousseau
-        : existingUser &&
-          Array.isArray(existingUser.categories) &&
-          existingUser.categories.length > 0
-        ? existingUser
-        : null;
-
-    if (sourceData) {
-      categoriesToUse = sourceData.categories;
-      itemsToUse = Array.isArray(sourceData.items) ? sourceData.items : itemsToUse;
-      settingsToUse = {
+    // CASE 1: Cloud already has items -> hydrate local Dexie immediately
+    if (cloudItems && cloudItems.length > 0) {
+      const categoriesToUse = cloudCategories && cloudCategories.length > 0 ? cloudCategories : defaultCats;
+      const settingsToUse = {
         ...defaultSettings,
-        ...(sourceData.settings || {}),
-        gender:
-          extraMeta.gender ||
-          sourceData.settings?.gender ||
-          existingUser?.gender ||
-          effectiveGender,
+        ...(existingUser?.settings || existingTrousseau?.settings || {}),
         brideName:
-          extraMeta.brideName ||
           existingUser?.brideName ||
-          sourceData.settings?.brideName ||
+          existingTrousseau?.settings?.brideName ||
+          extraMeta.brideName ||
           userDetails.brideName ||
           (isMale ? 'أحلى عريس' : 'أحلى عروسة'),
         phoneNumber:
-          extraMeta.phoneNumber ||
           existingUser?.phoneNumber ||
-          sourceData.settings?.phoneNumber ||
+          existingTrousseau?.settings?.phoneNumber ||
+          extraMeta.phoneNumber ||
           userDetails.phoneNumber ||
           '',
         weddingDate:
-          extraMeta.weddingDate ||
           existingUser?.weddingDate ||
-          sourceData.settings?.weddingDate ||
+          existingTrousseau?.settings?.weddingDate ||
+          extraMeta.weddingDate ||
           '',
         totalBudget:
-          extraMeta.totalBudget !== undefined
-            ? parseArabicNumber(extraMeta.totalBudget) || 300000
-            : Number(existingUser?.totalBudget) ||
-              Number(sourceData.settings?.totalBudget) ||
-              300000,
+          Number(existingUser?.totalBudget) ||
+          Number(existingTrousseau?.settings?.totalBudget) ||
+          300000,
+        gender: effectiveGender,
         id: 'app-settings',
-        lastUpdated: sourceData.updatedAt || nowIso
+        lastUpdated: nowIso
       };
-    } else {
-      await setDoc(trousseauRef, {
+
+      await writeSnapshotToDexie({
         categories: categoriesToUse,
-        items: itemsToUse,
+        items: cloudItems,
         settings: settingsToUse,
-        updatedAt: nowIso
-      }).catch(() => {});
+        profileFallback: existingUser || userDetails
+      });
+
+      setActiveCloudUid(uid, existingUser || userDetails);
+      return existingUser || userDetails;
     }
 
-    const metrics = calculateTrousseauMetrics(itemsToUse, settingsToUse);
+    // CASE 2: Brand new user explicitly confirmed by Firestore (both docs exist: false)
+    const isBrandNewCloudUser = userSnap && !userSnap.exists() && trousseauSnap && !trousseauSnap.exists();
 
-    const userProfilePayload = {
-      uid,
-      brideName: settingsToUse.brideName || (isMale ? 'أحلى عريس' : 'أحلى عروسة'),
-      gender: settingsToUse.gender || effectiveGender,
-      partnerCode: settingsToUse.partnerCode || defaultPartnerCode,
-      linkedPartnerUid: settingsToUse.linkedPartnerUid || '',
-      email: existingUser?.email || userDetails.email || '',
-      phoneNumber:
-        settingsToUse.phoneNumber ||
-        existingUser?.phoneNumber ||
-        userDetails.phoneNumber ||
-        '',
-      authMethod: existingUser?.authMethod || userDetails.authMethod || 'email',
-      photoURL: userDetails.photoURL || existingUser?.photoURL || '',
-      weddingDate: settingsToUse.weddingDate || '',
-      totalBudget: metrics.totalBudget,
-      totalSpent: metrics.totalSpent,
-      totalCashPaid: metrics.totalCashPaid,
-      totalRemainingDebt: metrics.totalRemainingDebt,
-      totalItemsCount: metrics.totalItemsCount,
-      purchasedItemsCount: metrics.purchasedItemsCount,
-      priorityItemsCount: metrics.priorityItemsCount,
-      completionPercentage: metrics.completionPercentage,
-      categories: categoriesToUse,
-      items: itemsToUse,
-      settings: settingsToUse,
-      createdAt: existingUser?.createdAt || nowIso,
-      lastActiveAt: nowIso
-    };
+    if (isBrandNewCloudUser) {
+      // If user had local items customized before signing up, preserve their local work!
+      const itemsToSeed = hasCustomLocalItems && localItems.length > 0 ? localItems : defaultItms;
+      const catsToSeed = localCats.length > 0 ? localCats : defaultCats;
 
-    await setDoc(userDocRef, userProfilePayload, { merge: true }).catch(() => {});
+      const defaultPartnerCode = `MSH-${uid.slice(0, 4).toUpperCase()}`;
+      const settingsToSeed = {
+        ...defaultSettings,
+        language: 'ar',
+        gender: effectiveGender,
+        partnerCode: defaultPartnerCode,
+        brideName:
+          extraMeta.brideName ||
+          userDetails.brideName ||
+          (isMale ? 'أحلى عريس' : 'أحلى عروسة'),
+        phoneNumber: extraMeta.phoneNumber || userDetails.phoneNumber || '',
+        weddingDate: extraMeta.weddingDate || '',
+        totalBudget:
+          extraMeta.totalBudget !== undefined
+            ? parseArabicNumber(extraMeta.totalBudget)
+            : 300000,
+        id: 'app-settings',
+        lastUpdated: nowIso
+      };
 
-    await writeSnapshotToDexie({
-      categories: categoriesToUse,
-      items: itemsToUse,
-      settings: settingsToUse,
-      profileFallback: userProfilePayload
-    });
+      const metrics = calculateTrousseauMetrics(itemsToSeed, settingsToSeed);
+      const userProfilePayload = {
+        uid,
+        brideName: settingsToSeed.brideName,
+        gender: effectiveGender,
+        partnerCode: defaultPartnerCode,
+        email: userDetails.email || '',
+        phoneNumber: settingsToSeed.phoneNumber,
+        authMethod: userDetails.authMethod || 'email',
+        photoURL: userDetails.photoURL || '',
+        weddingDate: settingsToSeed.weddingDate,
+        totalBudget: metrics.totalBudget,
+        totalSpent: metrics.totalSpent,
+        totalCashPaid: metrics.totalCashPaid,
+        totalRemainingDebt: metrics.totalRemainingDebt,
+        totalItemsCount: metrics.totalItemsCount,
+        purchasedItemsCount: metrics.purchasedItemsCount,
+        priorityItemsCount: metrics.priorityItemsCount,
+        completionPercentage: metrics.completionPercentage,
+        categories: catsToSeed,
+        items: sanitizeItemsForCloud(itemsToSeed),
+        settings: settingsToSeed,
+        createdAt: nowIso,
+        lastActiveAt: nowIso
+      };
 
-    setActiveCloudUid(uid, userProfilePayload);
-    return userProfilePayload;
+      await Promise.all([
+        setDoc(userDocRef, userProfilePayload, { merge: true }),
+        setDoc(
+          trousseauRef,
+          {
+            categories: catsToSeed,
+            items: sanitizeItemsForCloud(itemsToSeed),
+            settings: settingsToSeed,
+            updatedAt: nowIso
+          },
+          { merge: true }
+        )
+      ]);
+
+      await writeSnapshotToDexie({
+        categories: catsToSeed,
+        items: itemsToSeed,
+        settings: settingsToSeed,
+        profileFallback: userProfilePayload
+      });
+
+      setActiveCloudUid(uid, userProfilePayload);
+      return userProfilePayload;
+    }
+
+    // CASE 3: Ambiguous or read delayed / offline -> NEVER OVERWRITE CLOUD WITH EMPTY DEFAULTS!
+    // Set activeCloudUid so onSnapshot listener will hydrate data as soon as Firestore connects.
+    setActiveCloudUid(uid, existingUser || userDetails);
+    return existingUser || userDetails;
   } catch (err) {
     isApplyingRemoteSnapshot = false;
-    console.error('Error initializing user cloud profile:', err);
+    console.warn('initializeUserCloudProfile warning:', err);
     setActiveCloudUid(uid, userDetails);
     return userDetails;
   }
@@ -526,7 +625,6 @@ export async function initializeUserCloudProfile(firebaseUser, extraMeta = {}) {
 
 /**
  * Subscribe to a target bride's Firestore trousseau & profile in real-time
- * (Used both for the logged-in user AND when Super Admin impersonates any user)
  */
 export function subscribeToBrideCloudData(
   targetUid,
@@ -536,13 +634,12 @@ export function subscribeToBrideCloudData(
   if (!targetUid) return () => {};
 
   setActiveCloudUid(targetUid, initialProfileFallback || {});
-  const trousseauRef = doc(firestoreDb, 'users', targetUid, 'data', 'trousseau');
   const userDocRef = doc(firestoreDb, 'users', targetUid);
+  const trousseauRef = doc(firestoreDb, 'users', targetUid, 'data', 'trousseau');
 
   let latestUserProfile = initialProfileFallback || {};
-  let hasAppliedTrousseauSubdoc = false;
 
-  // If Super Admin just clicked a user in Admin Dashboard, immediately switch Dexie to their profile so there is zero stale data from previous user!
+  // If Super Admin impersonating, immediately seed with initialProfileFallback
   if (initialProfileFallback && initialProfileFallback.uid === targetUid) {
     writeSnapshotToDexie({
       categories: initialProfileFallback.categories,
@@ -552,46 +649,7 @@ export function subscribeToBrideCloudData(
     });
   }
 
-  const unsubTrousseau = onSnapshot(
-    trousseauRef,
-    async (snap) => {
-      if (!snap.exists()) {
-        // Fallback to userDocRef if subdoc doesn't exist
-        const userSnap = await getDoc(userDocRef).catch(() => null);
-        const userData =
-          userSnap && userSnap.exists()
-            ? userSnap.data()
-            : latestUserProfile || {};
-
-        await writeSnapshotToDexie({
-          categories: userData.categories,
-          items: userData.items,
-          settings: userData.settings,
-          profileFallback: userData
-        });
-        return;
-      }
-
-      const data = snap.data();
-      if (data.updatedAt && data.updatedAt === lastLocalWriteStamp) {
-        return;
-      }
-
-      if (Array.isArray(data.categories) && Array.isArray(data.items)) {
-        hasAppliedTrousseauSubdoc = true;
-        await writeSnapshotToDexie({
-          categories: data.categories,
-          items: data.items,
-          settings: data.settings,
-          profileFallback: latestUserProfile
-        });
-      }
-    },
-    (err) => {
-      console.warn('Trousseau subdoc listener fallback to user doc:', err);
-    }
-  );
-
+  // 1. Primary listener: users/{uid}
   const unsubUser = onSnapshot(
     userDocRef,
     async (snap) => {
@@ -607,8 +665,8 @@ export function subscribeToBrideCloudData(
           return;
         }
 
-        // If subdoc hasn't provided categories/items, or if userDoc has categories/items or updated profile metadata, sync Dexie!
-        if (!hasAppliedTrousseauSubdoc || Array.isArray(profile.categories)) {
+        // Only write items to Dexie if items is an array with items
+        if (Array.isArray(profile.items) && profile.items.length > 0) {
           await writeSnapshotToDexie({
             categories: profile.categories,
             items: profile.items,
@@ -616,17 +674,13 @@ export function subscribeToBrideCloudData(
             profileFallback: profile
           });
         } else {
-          // Even if subdoc exists, ensure brideName, gender, totalBudget, weddingDate from profile are reflected in Dexie settings
+          // Just update profile metadata in settings without touching items
           const currentSettings = (await db.settings.get('app-settings')) || defaultSettings;
-          const resolvedGender =
-            profile.gender ||
-            currentSettings.gender ||
-            detectGenderFromName(profile.brideName || '', profile.email || '');
           await db.settings.put({
             ...currentSettings,
             id: 'app-settings',
             brideName: profile.brideName || currentSettings.brideName,
-            gender: resolvedGender,
+            gender: profile.gender || currentSettings.gender,
             phoneNumber: profile.phoneNumber || currentSettings.phoneNumber || '',
             weddingDate: profile.weddingDate || currentSettings.weddingDate || '',
             totalBudget: Number(profile.totalBudget) || Number(currentSettings.totalBudget) || 300000
@@ -635,15 +689,39 @@ export function subscribeToBrideCloudData(
       }
     },
     (err) => {
-      console.warn('User profile snapshot listener error:', err);
+      console.warn('User profile snapshot listener warning:', err);
     }
   );
 
+  // 2. Secondary listener: users/{uid}/data/trousseau
+  const unsubTrousseau = onSnapshot(
+    trousseauRef,
+    async (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.updatedAt && data.updatedAt === lastLocalWriteStamp) {
+          return;
+        }
+
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          await writeSnapshotToDexie({
+            categories: data.categories,
+            items: data.items,
+            settings: data.settings,
+            profileFallback: latestUserProfile
+          });
+        }
+      }
+    },
+    () => {}
+  );
+
   return () => {
-    unsubTrousseau();
     unsubUser();
+    unsubTrousseau();
   };
 }
+
 
 /**
  * Create a read-only shared showcase profile snapshot in `shared_profiles/{shareId}`

@@ -65,6 +65,7 @@ export const translations = {
     printReportBtn: 'Print List',
     addItemBtn: 'Add Item',
     newItemShort: 'New Item',
+    logoutBtn: 'Logout',
 
     // Navigation History & Safe Refresh
     navBackTooltip: 'Go Back (Previous View)',
@@ -375,6 +376,7 @@ export const translations = {
     printReportBtn: 'كشف الطباعة',
     addItemBtn: 'إضافة بند',
     newItemShort: 'بند جديد',
+    logoutBtn: 'تسجيل الخروج',
 
     // Navigation History & Safe Refresh
     navBackTooltip: 'رجوع للخطوة السابقة',

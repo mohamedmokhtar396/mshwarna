@@ -13,23 +13,9 @@ import {
   Check,
   ExternalLink
 } from 'lucide-react';
+import { detectMobilePlatform } from '../utils/mobilePlatform';
 
-export function detectMobilePlatform() {
-  if (typeof window === 'undefined') {
-    return { isIOS: false, isAndroid: false, isInAppBrowser: false, isStandalone: false };
-  }
-  const ua = window.navigator.userAgent || '';
-  const isIOS =
-    /iPad|iPhone|iPod/.test(ua) ||
-    (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
-  const isAndroid = /Android/i.test(ua);
-  const isInAppBrowser = /FBAN|FBAV|Instagram|Messenger|Line/i.test(ua);
-  const isStandalone =
-    window.matchMedia?.('(display-mode: standalone)')?.matches ||
-    window.navigator.standalone === true;
-
-  return { isIOS, isAndroid, isInAppBrowser, isStandalone };
-}
+export { detectMobilePlatform };
 
 export default function InstallAppModal({
   isOpen,

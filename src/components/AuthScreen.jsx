@@ -78,7 +78,15 @@ function getFriendlyFirebaseError(error, method = 'email', isMale = false) {
       ? 'يرجى إدخال رقم موبايل صحيح (مثال: 01012345678).'
       : 'يرجى إدخال بريد إلكتروني صحيح.';
   }
-  if (code === 'auth/popup-closed-by-user') {
+  if (code === 'auth/unauthorized-domain') {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'vercel.app';
+    return `دومين الموقع الحالي (${host}) غير مضاف بعد في قائمة النطاقات المصرح بها لجوجل داخل Firebase Console -> Authentication -> Settings -> Authorized domains. (ملاحظة: التسجيل برقم الموبايل أو الإيميل يعمل فوراً بدون هذه الخطوة!).`;
+  }
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (host && host !== 'localhost' && !host.includes('firebaseapp.com')) {
+      return `تم إغلاق نافذة جوجل أو ظهر خطأ "requested action is invalid". لحلها في 10 ثوانٍ: افتح Firebase Console -> Authentication -> Settings -> Authorized domains وأضف الدومين: (${host}). أو سجل فوراً برقم الموبايل في الأسفل!`;
+    }
     return 'تم إغلاق نافذة تسجيل الدخول بحساب جوجل قبل الإكمال.';
   }
   if (code === 'auth/network-request-failed') {
