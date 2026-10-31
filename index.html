@@ -1,21 +1,64 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#D88C9A" />
+    <meta id="app-theme-color" name="theme-color" content="#D88C9A" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Bride's Companion" />
-    <meta name="description" content="Bride's Companion - رفيقة العروسة | Offline-First Bridal Trousseau, Budget & Installments Manager" />
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/svg+xml" href="/bridal-icon.svg" />
-    <link rel="apple-touch-icon" href="/bridal-icon.svg" />
+    <meta name="apple-mobile-web-app-title" content="م-شوارنا" />
+    <meta name="application-name" content="م-شوارنا" />
+    <meta name="description" content="م-شوارنا | Meshwarna - التطبيق الأول للعروسة والعريس لتنظيم ومتابعة الجهاز وتأسيس الشقة والميزانية والأقساط" />
+    <link id="app-manifest" rel="manifest" href="/manifest.json" />
+    <link id="app-favicon-64" rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+    <link id="app-icon-192" rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link id="app-icon-512" rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <link id="app-apple-touch-icon" rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <!-- Google Fonts: Tajawal & Cairo -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
-    <title>Bride's Companion | رفيقة العروسة</title>
+    <title>م-شوارنا | Meshwarna</title>
+    <script>
+      // Sync Groom (suit portrait) vs Bride (bridal portrait) app icons & manifest dynamically
+      window.syncGenderAppIcons = function (gender) {
+        try {
+          var isMale = gender === 'male';
+          localStorage.setItem('meshwarna_gender', isMale ? 'male' : 'female');
+          var prefix = isMale ? '/groom-' : '/';
+          var appleIcon = document.getElementById('app-apple-touch-icon');
+          var icon192 = document.getElementById('app-icon-192');
+          var icon512 = document.getElementById('app-icon-512');
+          var fav64 = document.getElementById('app-favicon-64');
+          var manifestEl = document.getElementById('app-manifest');
+          var themeMeta = document.getElementById('app-theme-color');
+
+          if (appleIcon) appleIcon.href = prefix + 'apple-touch-icon.png';
+          if (icon192) icon192.href = prefix + 'icon-192.png';
+          if (icon512) icon512.href = prefix + 'icon-512.png';
+          if (fav64) fav64.href = prefix + 'favicon-64.png';
+          if (manifestEl) manifestEl.href = isMale ? '/manifest-groom.json' : '/manifest.json';
+          if (themeMeta) themeMeta.content = isMale ? '#2B4C7E' : '#D88C9A';
+        } catch (e) {}
+      };
+
+      // Apply saved gender icon immediately on startup
+      try {
+        var savedGender = localStorage.getItem('meshwarna_gender');
+        if (savedGender === 'male') {
+          window.syncGenderAppIcons('male');
+        }
+      } catch (e) {}
+
+      // Capture PWA beforeinstallprompt event immediately before React finishes mounting
+      window.__deferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__deferredInstallPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-install-available', { detail: e }));
+      });
+    </script>
   </head>
   <body class="bg-bridal-bg text-bridal-charcoal font-sans antialiased selection:bg-bridal-rose/20 selection:text-bridal-charcoal">
     <div id="root"></div>

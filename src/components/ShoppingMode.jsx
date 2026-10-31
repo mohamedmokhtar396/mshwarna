@@ -16,7 +16,7 @@ import {
 } from '../i18n';
 
 export default function ShoppingMode({
-  lang = 'ar',
+  lang = 'en',
   categories,
   items,
   activeFilter,
@@ -28,10 +28,10 @@ export default function ShoppingMode({
   onEditItem,
   onDeleteItem,
   onAddItem,
-  isReadOnly = false,
-  showPrices = true
+  onQuickUploadItemPhotos,
+  onOpenLightbox
 }) {
-  const t = translations[lang] || translations.ar;
+  const t = translations[lang] || translations.en;
   const smartFilters = useMemo(() => getSmartFilters(t), [t]);
   const [categoryFilter, setCategoryFilter] = useState('all');
 
@@ -119,18 +119,16 @@ export default function ShoppingMode({
             </div>
           </div>
 
-          {!isReadOnly && (
-            <button
-              type="button"
-              onClick={() =>
-                onAddItem(categoryFilter !== 'all' ? categoryFilter : categories[0]?.id)
-              }
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-l from-bridal-rose to-bridal-blush text-white text-xs sm:text-sm font-bold shadow-bridal hover:opacity-95 transition flex-shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t.quickAddItemBtn}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() =>
+              onAddItem(categoryFilter !== 'all' ? categoryFilter : categories[0]?.id)
+            }
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-l from-bridal-rose to-bridal-blush text-white text-xs sm:text-sm font-bold shadow-bridal hover:opacity-95 transition flex-shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t.quickAddItemBtn}</span>
+          </button>
         </div>
 
         {/* Summary Strip */}
@@ -144,20 +142,18 @@ export default function ShoppingMode({
             </span>
           </div>
 
-          {showPrices && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 rounded-xl bg-bridal-surface border border-bridal-border font-bold text-bridal-sageDark">
-                {t.listEstimatedActualTotal} {formatCurrency(listEstimatedTotal, lang)}{' '}
-                {t.currency}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1 rounded-xl bg-bridal-surface border border-bridal-border font-bold text-bridal-sageDark">
+              {t.listEstimatedActualTotal} {formatCurrency(listEstimatedTotal, lang)}{' '}
+              {t.currency}
+            </span>
+            {listRemainingInstallments > 0 && (
+              <span className="px-3 py-1 rounded-xl bg-bridal-goldLight border border-bridal-gold/40 font-bold text-bridal-gold">
+                {t.totalRemainingToMerchants}{' '}
+                {formatCurrency(listRemainingInstallments, lang)} {t.currency}
               </span>
-              {listRemainingInstallments > 0 && (
-                <span className="px-3 py-1 rounded-xl bg-bridal-goldLight border border-bridal-gold/40 font-bold text-bridal-gold">
-                  {t.totalRemainingToMerchants}{' '}
-                  {formatCurrency(listRemainingInstallments, lang)} {t.currency}
-                </span>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -251,8 +247,8 @@ export default function ShoppingMode({
                 onUpdateQty={onUpdateQty}
                 onEdit={onEditItem}
                 onDelete={onDeleteItem}
-                isReadOnly={isReadOnly}
-                showPrices={showPrices}
+                onQuickUploadPhotos={onQuickUploadItemPhotos}
+                onOpenLightbox={onOpenLightbox}
               />
             ))}
           </AnimatePresence>

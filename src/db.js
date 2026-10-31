@@ -3,10 +3,50 @@ import {
   doc,
   getDoc,
   setDoc,
-  onSnapshot
+  onSnapshot,
+  collection,
+  query,
+  where,
+  getDocs
 } from 'firebase/firestore';
 import { db as firestoreDb } from './firebaseConfig';
 import { initialCategories, initialItems, defaultSettings } from './seedData';
+import { groomInitialCategories, groomInitialItems } from './groomSeedData';
+
+/**
+ * Smart Gender Detector from Arabic/English First Name or Email (for 1-Click Google Sign-In)
+ */
+const COMMON_MALE_NAMES = new Set([
+  'mohamed', 'mohammed', 'muhammad', 'ahmed', 'ahmad', 'mahmoud', 'mostafa', 'mustafa',
+  'ali', 'omar', 'youssef', 'yousef', 'youssef', 'karim', 'kareem', 'hassan', 'hussein',
+  'ibrahim', 'amr', 'khaled', 'khalid', 'tarek', 'tariq', 'hossam', 'eslam', 'islam',
+  'ziad', 'zeyad', 'marwan', 'seif', 'saif', 'adel', 'sherif', 'hazem', 'ramy', 'rami',
+  'tamer', 'walid', 'waleed', 'wael', 'ayman', 'ashraf', 'osama', 'sameh', 'hany', 'hani',
+  'mina', 'kirollos', 'abanoub', 'george', 'peter', 'michael', 'fady', 'beshoy', 'bola',
+  'abdallah', 'abdelrahman', 'hamza', 'mazen', 'bassem', 'nasser', 'salah', 'gamal',
+  'magdy', 'medhat', 'emad', 'alaa', 'essam', 'hatem', 'maged', 'farouk', 'fouad',
+  'محمد', 'أحمد', 'احمد', 'محمود', 'مصطفى', 'مصطفي', 'علي', 'على', 'عمر', 'يوسف',
+  'كريم', 'حسن', 'حسين', 'إبراهيم', 'ابراهيم', 'عمرو', 'خالد', 'طارق', 'حسام',
+  'إسلام', 'اسلام', 'زياد', 'مروان', 'سيف', 'عادل', 'شريف', 'حازم', 'رامي', 'رامى',
+  'تامر', 'وليد', 'وائل', 'أيمن', 'ايمن', 'أشرف', 'اشرف', 'أسامة', 'اسامة', 'سامح',
+  'هاني', 'هانى', 'مينا', 'كيرلس', 'أبانوب', 'ابانوب', 'جورج', 'بيتر', 'مايكل', 'فادي',
+  'بيشوي', 'عبدالله', 'عبدالرحمن', 'حمزة', 'مازن', 'باسم', 'ياسر', 'عماد', 'مجدى', 'مجدي'
+]);
+
+export function detectGenderFromName(displayName = '', email = '') {
+  const cleanName = String(displayName || '').trim().toLowerCase();
+  const firstWord = cleanName.split(/\s+/)[0] || '';
+  if (COMMON_MALE_NAMES.has(firstWord)) {
+    return 'male';
+  }
+  const emailPrefix = String(email || '').split('@')[0]?.toLowerCase() || '';
+  for (const maleName of COMMON_MALE_NAMES) {
+    if (maleName.length >= 4 && emailPrefix.startsWith(maleName)) {
+      return 'male';
+    }
+  }
+  return 'female';
+}
 
 export const db = new Dexie('BridalTrousseauDB');
 
@@ -143,6 +183,10 @@ export function deriveUserAuthDetails(firebaseUser, extraMeta = {}) {
     authMethod = 'google';
   }
 
+  const detectedGender =
+    extraMeta.gender ||
+    detectGenderFromName(firebaseUser.displayName, rawEmail);
+
   return {
     uid: firebaseUser.uid,
     email: isPhoneSynthetic ? (extraMeta.realEmail || rawEmail) : rawEmail,
@@ -154,10 +198,71 @@ export function deriveUserAuthDetails(firebaseUser, extraMeta = {}) {
     brideName:
       extraMeta.brideName ||
       firebaseUser.displayName ||
-      'أحلى عروسة',
+      (detectedGender === 'male' ? 'أحلى عريس' : 'أحلى عروسة'),
+    gender: detectedGender,
     photoURL: firebaseUser.photoURL || extraMeta.photoURL || '',
     authMethod
   };
+}
+
+/**
+ * Helper to write a target user's categories, items, and settings into local Dexie
+ */
+async function writeSnapshotToDexie({ categories, items, settings, profileFallback = {} }) {
+  const effectiveName =
+    settings?.brideName &&
+    settings.brideName !== 'Lovely Bride' &&
+    settings.brideName !== 'أحلى عروسة' &&
+    settings.brideName !== 'أحلى عريس'
+      ? settings.brideName
+      : profileFallback?.brideName ||
+        profileFallback?.displayName ||
+        settings?.brideName ||
+        'أحلى عروسة';
+
+  const effectiveGender =
+    settings?.gender ||
+    profileFallback?.gender ||
+    detectGenderFromName(effectiveName, profileFallback?.email || '');
+
+  const isMale = effectiveGender === 'male';
+  const defaultCats = isMale ? groomInitialCategories : initialCategories;
+  const defaultItms = isMale ? groomInitialItems : initialItems;
+
+  const finalCategories =
+    Array.isArray(categories) && categories.length > 0 ? categories : defaultCats;
+  const finalItems =
+    Array.isArray(items) && items.length > 0 ? items : defaultItms;
+
+  const finalSettings = {
+    ...defaultSettings,
+    ...(settings || {}),
+    id: 'app-settings',
+    language: settings?.language || 'ar',
+    gender: effectiveGender,
+    brideName: effectiveName,
+    phoneNumber: settings?.phoneNumber || profileFallback?.phoneNumber || '',
+    weddingDate: settings?.weddingDate || profileFallback?.weddingDate || '',
+    totalBudget:
+      Number(settings?.totalBudget) ||
+      Number(profileFallback?.totalBudget) ||
+      300000
+  };
+
+  try {
+    isApplyingRemoteSnapshot = true;
+    await db.transaction('rw', db.categories, db.items, db.settings, async () => {
+      await db.categories.clear();
+      await db.items.clear();
+      await db.categories.bulkPut(finalCategories);
+      await db.items.bulkPut(finalItems);
+      await db.settings.put(finalSettings);
+    });
+  } catch (e) {
+    console.warn('Error writing snapshot to Dexie:', e);
+  } finally {
+    isApplyingRemoteSnapshot = false;
+  }
 }
 
 /**
@@ -189,41 +294,54 @@ export async function syncCurrentDexieToCloud(uidOverride = null) {
     const trousseauRef = doc(firestoreDb, 'users', targetUid, 'data', 'trousseau');
     const userDocRef = doc(firestoreDb, 'users', targetUid);
 
-    await Promise.all([
-      setDoc(
-        trousseauRef,
-        {
-          categories,
-          items,
-          settings: cleanSettings,
-          updatedAt: nowIso
-        },
-        { merge: true }
-      ),
-      setDoc(
-        userDocRef,
-        {
-          uid: targetUid,
-          brideName:
-            cleanSettings.brideName &&
-            cleanSettings.brideName !== 'Lovely Bride'
-              ? cleanSettings.brideName
-              : activeUserMeta.brideName || cleanSettings.brideName || 'أحلى عروسة',
-          ...(cleanSettings.phoneNumber ? { phoneNumber: cleanSettings.phoneNumber } : {}),
-          weddingDate: cleanSettings.weddingDate || '',
-          totalBudget: metrics.totalBudget,
-          totalSpent: metrics.totalSpent,
-          totalCashPaid: metrics.totalCashPaid,
-          totalRemainingDebt: metrics.totalRemainingDebt,
-          totalItemsCount: metrics.totalItemsCount,
-          purchasedItemsCount: metrics.purchasedItemsCount,
-          priorityItemsCount: metrics.priorityItemsCount,
-          completionPercentage: metrics.completionPercentage,
-          lastActiveAt: nowIso
-        },
-        { merge: true }
-      )
-    ]);
+    const resolvedName =
+      cleanSettings.brideName &&
+      cleanSettings.brideName !== 'Lovely Bride'
+        ? cleanSettings.brideName
+        : activeUserMeta.brideName || cleanSettings.brideName || 'أحلى عروسة';
+
+    // Save to top-level user doc (including categories/items/settings so it always works even if subcollections are restricted)
+    const userDocPromise = setDoc(
+      userDocRef,
+      {
+        uid: targetUid,
+        brideName: resolvedName,
+        gender: cleanSettings.gender || activeUserMeta.gender || 'female',
+        ...(cleanSettings.phoneNumber ? { phoneNumber: cleanSettings.phoneNumber } : {}),
+        ...(cleanSettings.partnerCode ? { partnerCode: cleanSettings.partnerCode } : {}),
+        ...(cleanSettings.linkedPartnerUid
+          ? { linkedPartnerUid: cleanSettings.linkedPartnerUid }
+          : {}),
+        weddingDate: cleanSettings.weddingDate || '',
+        totalBudget: metrics.totalBudget,
+        totalSpent: metrics.totalSpent,
+        totalCashPaid: metrics.totalCashPaid,
+        totalRemainingDebt: metrics.totalRemainingDebt,
+        totalItemsCount: metrics.totalItemsCount,
+        purchasedItemsCount: metrics.purchasedItemsCount,
+        priorityItemsCount: metrics.priorityItemsCount,
+        completionPercentage: metrics.completionPercentage,
+        categories,
+        items,
+        settings: cleanSettings,
+        updatedAt: nowIso,
+        lastActiveAt: nowIso
+      },
+      { merge: true }
+    );
+
+    const trousseauDocPromise = setDoc(
+      trousseauRef,
+      {
+        categories,
+        items,
+        settings: cleanSettings,
+        updatedAt: nowIso
+      },
+      { merge: true }
+    ).catch(() => {});
+
+    await Promise.all([userDocPromise, trousseauDocPromise]);
   } catch (err) {
     console.warn('Cloud sync warning (queued offline if disconnected):', err);
   }
@@ -244,23 +362,44 @@ export async function initializeUserCloudProfile(firebaseUser, extraMeta = {}) {
 
   try {
     const [userSnap, trousseauSnap] = await Promise.all([
-      getDoc(userDocRef),
-      getDoc(trousseauRef)
+      getDoc(userDocRef).catch(() => null),
+      getDoc(trousseauRef).catch(() => null)
     ]);
 
-    const existingUser = userSnap.exists() ? userSnap.data() : null;
-    const existingTrousseau = trousseauSnap.exists() ? trousseauSnap.data() : null;
+    const existingUser = userSnap && userSnap.exists() ? userSnap.data() : null;
+    const existingTrousseau =
+      trousseauSnap && trousseauSnap.exists() ? trousseauSnap.data() : null;
 
-    let categoriesToUse = initialCategories;
-    let itemsToUse = initialItems;
+    const effectiveGender =
+      extraMeta.gender ||
+      existingTrousseau?.settings?.gender ||
+      existingUser?.settings?.gender ||
+      existingUser?.gender ||
+      userDetails.gender ||
+      'female';
+
+    const isMale = effectiveGender === 'male';
+    let categoriesToUse = isMale ? groomInitialCategories : initialCategories;
+    let itemsToUse = isMale ? groomInitialItems : initialItems;
+    const defaultPartnerCode =
+      existingUser?.partnerCode ||
+      existingTrousseau?.settings?.partnerCode ||
+      `MSH-${uid.slice(0, 4).toUpperCase()}`;
+
     let settingsToUse = {
       ...defaultSettings,
       language: 'ar',
+      gender: effectiveGender,
+      partnerCode: defaultPartnerCode,
+      linkedPartnerUid:
+        existingTrousseau?.settings?.linkedPartnerUid ||
+        existingUser?.linkedPartnerUid ||
+        '',
       brideName:
         extraMeta.brideName ||
         existingUser?.brideName ||
         userDetails.brideName ||
-        'أحلى عروسة',
+        (isMale ? 'أحلى عريس' : 'أحلى عروسة'),
       phoneNumber:
         extraMeta.phoneNumber ||
         existingUser?.phoneNumber ||
@@ -277,60 +416,77 @@ export async function initializeUserCloudProfile(firebaseUser, extraMeta = {}) {
       lastUpdated: nowIso
     };
 
-    if (
+    const sourceData =
       existingTrousseau &&
       Array.isArray(existingTrousseau.categories) &&
-      existingTrousseau.categories.length > 0 &&
-      Array.isArray(existingTrousseau.items)
-    ) {
-      categoriesToUse = existingTrousseau.categories;
-      itemsToUse = existingTrousseau.items;
+      existingTrousseau.categories.length > 0
+        ? existingTrousseau
+        : existingUser &&
+          Array.isArray(existingUser.categories) &&
+          existingUser.categories.length > 0
+        ? existingUser
+        : null;
+
+    if (sourceData) {
+      categoriesToUse = sourceData.categories;
+      itemsToUse = Array.isArray(sourceData.items) ? sourceData.items : itemsToUse;
       settingsToUse = {
         ...defaultSettings,
-        ...(existingTrousseau.settings || {}),
+        ...(sourceData.settings || {}),
+        gender:
+          extraMeta.gender ||
+          sourceData.settings?.gender ||
+          existingUser?.gender ||
+          effectiveGender,
         brideName:
           extraMeta.brideName ||
-          existingTrousseau.settings?.brideName ||
           existingUser?.brideName ||
+          sourceData.settings?.brideName ||
           userDetails.brideName ||
-          'أحلى عروسة',
+          (isMale ? 'أحلى عريس' : 'أحلى عروسة'),
         phoneNumber:
           extraMeta.phoneNumber ||
-          existingTrousseau.settings?.phoneNumber ||
           existingUser?.phoneNumber ||
+          sourceData.settings?.phoneNumber ||
           userDetails.phoneNumber ||
           '',
         weddingDate:
           extraMeta.weddingDate ||
-          existingTrousseau.settings?.weddingDate ||
           existingUser?.weddingDate ||
+          sourceData.settings?.weddingDate ||
           '',
         totalBudget:
           extraMeta.totalBudget !== undefined
             ? parseArabicNumber(extraMeta.totalBudget) || 300000
-            : Number(existingTrousseau.settings?.totalBudget) ||
-              Number(existingUser?.totalBudget) ||
+            : Number(existingUser?.totalBudget) ||
+              Number(sourceData.settings?.totalBudget) ||
               300000,
         id: 'app-settings',
-        lastUpdated: existingTrousseau.updatedAt || nowIso
+        lastUpdated: sourceData.updatedAt || nowIso
       };
     } else {
-      // First time bride! Auto-seed her Firestore trousseau document
       await setDoc(trousseauRef, {
         categories: categoriesToUse,
         items: itemsToUse,
         settings: settingsToUse,
         updatedAt: nowIso
-      });
+      }).catch(() => {});
     }
 
     const metrics = calculateTrousseauMetrics(itemsToUse, settingsToUse);
 
     const userProfilePayload = {
       uid,
-      brideName: settingsToUse.brideName || 'أحلى عروسة',
+      brideName: settingsToUse.brideName || (isMale ? 'أحلى عريس' : 'أحلى عروسة'),
+      gender: settingsToUse.gender || effectiveGender,
+      partnerCode: settingsToUse.partnerCode || defaultPartnerCode,
+      linkedPartnerUid: settingsToUse.linkedPartnerUid || '',
       email: existingUser?.email || userDetails.email || '',
-      phoneNumber: settingsToUse.phoneNumber || existingUser?.phoneNumber || userDetails.phoneNumber || '',
+      phoneNumber:
+        settingsToUse.phoneNumber ||
+        existingUser?.phoneNumber ||
+        userDetails.phoneNumber ||
+        '',
       authMethod: existingUser?.authMethod || userDetails.authMethod || 'email',
       photoURL: userDetails.photoURL || existingUser?.photoURL || '',
       weddingDate: settingsToUse.weddingDate || '',
@@ -342,22 +498,21 @@ export async function initializeUserCloudProfile(firebaseUser, extraMeta = {}) {
       purchasedItemsCount: metrics.purchasedItemsCount,
       priorityItemsCount: metrics.priorityItemsCount,
       completionPercentage: metrics.completionPercentage,
+      categories: categoriesToUse,
+      items: itemsToUse,
+      settings: settingsToUse,
       createdAt: existingUser?.createdAt || nowIso,
       lastActiveAt: nowIso
     };
 
-    await setDoc(userDocRef, userProfilePayload, { merge: true });
+    await setDoc(userDocRef, userProfilePayload, { merge: true }).catch(() => {});
 
-    // Mirror to local Dexie DB
-    isApplyingRemoteSnapshot = true;
-    await db.transaction('rw', db.categories, db.items, db.settings, async () => {
-      await db.categories.clear();
-      await db.items.clear();
-      await db.categories.bulkPut(categoriesToUse);
-      await db.items.bulkPut(itemsToUse);
-      await db.settings.put(settingsToUse);
+    await writeSnapshotToDexie({
+      categories: categoriesToUse,
+      items: itemsToUse,
+      settings: settingsToUse,
+      profileFallback: userProfilePayload
     });
-    isApplyingRemoteSnapshot = false;
 
     setActiveCloudUid(uid, userProfilePayload);
     return userProfilePayload;
@@ -371,38 +526,48 @@ export async function initializeUserCloudProfile(firebaseUser, extraMeta = {}) {
 
 /**
  * Subscribe to a target bride's Firestore trousseau & profile in real-time
- * Used both for the logged-in bride AND when Super Admin impersonates any bride.
+ * (Used both for the logged-in user AND when Super Admin impersonates any user)
  */
-export function subscribeToBrideCloudData(targetUid, onUserProfileChange) {
+export function subscribeToBrideCloudData(
+  targetUid,
+  onUserProfileChange,
+  initialProfileFallback = null
+) {
   if (!targetUid) return () => {};
 
-  setActiveCloudUid(targetUid);
+  setActiveCloudUid(targetUid, initialProfileFallback || {});
   const trousseauRef = doc(firestoreDb, 'users', targetUid, 'data', 'trousseau');
   const userDocRef = doc(firestoreDb, 'users', targetUid);
+
+  let latestUserProfile = initialProfileFallback || {};
+  let hasAppliedTrousseauSubdoc = false;
+
+  // If Super Admin just clicked a user in Admin Dashboard, immediately switch Dexie to their profile so there is zero stale data from previous user!
+  if (initialProfileFallback && initialProfileFallback.uid === targetUid) {
+    writeSnapshotToDexie({
+      categories: initialProfileFallback.categories,
+      items: initialProfileFallback.items,
+      settings: initialProfileFallback.settings,
+      profileFallback: initialProfileFallback
+    });
+  }
 
   const unsubTrousseau = onSnapshot(
     trousseauRef,
     async (snap) => {
       if (!snap.exists()) {
-        // Seed if target user has no trousseau doc yet
-        const userSnap = await getDoc(userDocRef);
-        const userData = userSnap.exists() ? userSnap.data() : {};
-        const nowIso = new Date().toISOString();
-        const seededSettings = {
-          ...defaultSettings,
-          language: 'ar',
-          brideName: userData.brideName || 'أحلى عروسة',
-          phoneNumber: userData.phoneNumber || '',
-          weddingDate: userData.weddingDate || '',
-          totalBudget: Number(userData.totalBudget) || 300000,
-          id: 'app-settings',
-          lastUpdated: nowIso
-        };
-        await setDoc(trousseauRef, {
-          categories: initialCategories,
-          items: initialItems,
-          settings: seededSettings,
-          updatedAt: nowIso
+        // Fallback to userDocRef if subdoc doesn't exist
+        const userSnap = await getDoc(userDocRef).catch(() => null);
+        const userData =
+          userSnap && userSnap.exists()
+            ? userSnap.data()
+            : latestUserProfile || {};
+
+        await writeSnapshotToDexie({
+          categories: userData.categories,
+          items: userData.items,
+          settings: userData.settings,
+          profileFallback: userData
         });
         return;
       }
@@ -413,41 +578,59 @@ export function subscribeToBrideCloudData(targetUid, onUserProfileChange) {
       }
 
       if (Array.isArray(data.categories) && Array.isArray(data.items)) {
-        try {
-          isApplyingRemoteSnapshot = true;
-          await db.transaction('rw', db.categories, db.items, db.settings, async () => {
-            await db.categories.clear();
-            await db.items.clear();
-            await db.categories.bulkPut(data.categories);
-            await db.items.bulkPut(data.items);
-            if (data.settings) {
-              await db.settings.put({
-                ...defaultSettings,
-                ...data.settings,
-                id: 'app-settings'
-              });
-            }
-          });
-        } catch (e) {
-          console.warn('Error applying remote snapshot to Dexie:', e);
-        } finally {
-          isApplyingRemoteSnapshot = false;
-        }
+        hasAppliedTrousseauSubdoc = true;
+        await writeSnapshotToDexie({
+          categories: data.categories,
+          items: data.items,
+          settings: data.settings,
+          profileFallback: latestUserProfile
+        });
       }
     },
     (err) => {
-      console.warn('Trousseau snapshot listener error:', err);
+      console.warn('Trousseau subdoc listener fallback to user doc:', err);
     }
   );
 
   const unsubUser = onSnapshot(
     userDocRef,
-    (snap) => {
+    async (snap) => {
       if (snap.exists()) {
-        const profile = snap.data();
+        const profile = { ...snap.data(), uid: snap.id };
+        latestUserProfile = profile;
         activeUserMeta = { ...activeUserMeta, ...profile };
         if (onUserProfileChange) {
           onUserProfileChange(profile);
+        }
+
+        if (profile.updatedAt && profile.updatedAt === lastLocalWriteStamp) {
+          return;
+        }
+
+        // If subdoc hasn't provided categories/items, or if userDoc has categories/items or updated profile metadata, sync Dexie!
+        if (!hasAppliedTrousseauSubdoc || Array.isArray(profile.categories)) {
+          await writeSnapshotToDexie({
+            categories: profile.categories,
+            items: profile.items,
+            settings: profile.settings,
+            profileFallback: profile
+          });
+        } else {
+          // Even if subdoc exists, ensure brideName, gender, totalBudget, weddingDate from profile are reflected in Dexie settings
+          const currentSettings = (await db.settings.get('app-settings')) || defaultSettings;
+          const resolvedGender =
+            profile.gender ||
+            currentSettings.gender ||
+            detectGenderFromName(profile.brideName || '', profile.email || '');
+          await db.settings.put({
+            ...currentSettings,
+            id: 'app-settings',
+            brideName: profile.brideName || currentSettings.brideName,
+            gender: resolvedGender,
+            phoneNumber: profile.phoneNumber || currentSettings.phoneNumber || '',
+            weddingDate: profile.weddingDate || currentSettings.weddingDate || '',
+            totalBudget: Number(profile.totalBudget) || Number(currentSettings.totalBudget) || 300000
+          });
         }
       }
     },
@@ -500,8 +683,6 @@ export async function createSharedShowcaseProfile({
   const nowIso = new Date().toISOString();
   const metrics = calculateTrousseauMetrics(items, settings);
 
-  // Sanitize prices if showPrices is false? We still store items or zero them out if desired,
-  // and also store showPrices flag so the Showcase UI respects it!
   const snapshotItems = showPrices
     ? items
     : items.map((item) => ({
@@ -554,8 +735,11 @@ export async function fetchSharedShowcaseProfile(shareId) {
 export async function exportBrideCloudPayload(targetUid) {
   const [trousseauSnap, userSnap] = await Promise.all([
     getDoc(doc(firestoreDb, 'users', targetUid, 'data', 'trousseau')),
-    getDoc(doc(firestoreDb, 'users', targetUid))
+    getDoc(doc(firestoreDb, 'users', uidToExport(targetUid)))
   ]);
+  function uidToExport(u) {
+    return u;
+  }
 
   const tData = trousseauSnap.exists() ? trousseauSnap.data() : null;
   const uData = userSnap.exists() ? userSnap.data() : null;
@@ -595,7 +779,8 @@ export async function initializeDatabase() {
       await db.items.bulkPut(initialItems);
       await db.settings.put({
         ...defaultSettings,
-        language: 'ar'
+        language: 'ar',
+        hasUnbackedChanges: false
       });
     });
   } else {
@@ -603,7 +788,8 @@ export async function initializeDatabase() {
     if (!existingSettings) {
       await db.settings.put({
         ...defaultSettings,
-        language: 'ar'
+        language: 'ar',
+        hasUnbackedChanges: false
       });
     }
   }
@@ -612,16 +798,34 @@ export async function initializeDatabase() {
 /**
  * Touch lastUpdated timestamp in settings whenever data changes & sync to cloud
  */
-export async function touchLastUpdated() {
+export async function touchLastUpdated(markUnbacked = true) {
   if (isReadOnlyMode) return;
   try {
-    await db.settings.update('app-settings', {
+    const updateObj = {
       lastUpdated: new Date().toISOString()
-    });
+    };
+    if (markUnbacked) {
+      updateObj.hasUnbackedChanges = true;
+    }
+    await db.settings.update('app-settings', updateObj);
   } catch {
     // ignore if settings not yet initialized
   }
   await syncCurrentDexieToCloud();
+}
+
+/**
+ * Mark backup as up-to-date
+ */
+export async function markBackupCompleted() {
+  try {
+    await db.settings.update('app-settings', {
+      hasUnbackedChanges: false,
+      lastBackedUpAt: new Date().toISOString()
+    });
+  } catch {
+    // ignore
+  }
 }
 
 /**
@@ -638,7 +842,7 @@ export async function toggleItemPurchased(item) {
     isPurchased: nextPurchased,
     purchasedQty: nextQty
   });
-  await touchLastUpdated();
+  await touchLastUpdated(true);
   return nextPurchased;
 }
 
@@ -651,7 +855,7 @@ export async function toggleItemPriority(item) {
   await db.items.update(item.id, {
     isPriority: nextPriority
   });
-  await touchLastUpdated();
+  await touchLastUpdated(true);
   return nextPriority;
 }
 
@@ -674,12 +878,12 @@ export async function updateItemQuantity(item, delta) {
     purchasedQty: nextQty,
     isPurchased: nextPurchased
   });
-  await touchLastUpdated();
+  await touchLastUpdated(true);
   return { nextQty, nextPurchased };
 }
 
 /**
- * Save or Create an Item
+ * Save or Create an Item (including product/price-quote images & invoice photos)
  */
 export async function saveItem(itemData, lang = 'ar') {
   if (isReadOnlyMode) return itemData;
@@ -728,13 +932,59 @@ export async function saveItem(itemData, lang = 'ar') {
     isPriority: Boolean(itemData.isPriority),
     brand: trimmedBrand || existing?.brand || '',
     storeName: trimmedStore || existing?.storeName || '',
+    nextInstallmentDate:
+      itemData.nextInstallmentDate !== undefined
+        ? itemData.nextInstallmentDate
+        : existing?.nextInstallmentDate || '',
+    deliveryDate:
+      itemData.deliveryDate !== undefined
+        ? itemData.deliveryDate
+        : existing?.deliveryDate || '',
     notes: lang === 'ar' ? trimmedNotes : existing?.notes ?? trimmedNotes,
-    notesEn: lang === 'en' ? trimmedNotes : existing?.notesEn ?? trimmedNotes
+    notesEn: lang === 'en' ? trimmedNotes : existing?.notesEn ?? trimmedNotes,
+    images: Array.isArray(itemData.images) ? itemData.images : existing?.images || [],
+    invoiceImages: Array.isArray(itemData.invoiceImages)
+      ? itemData.invoiceImages
+      : existing?.invoiceImages || [],
+    fianceNote: itemData.fianceNote !== undefined ? itemData.fianceNote : existing?.fianceNote || ''
   };
 
   await db.items.put(record);
-  await touchLastUpdated();
+  await touchLastUpdated(true);
   return record;
+}
+
+/**
+ * Quick helper to append photos or invoices directly to an item from ItemCard
+ */
+export async function appendItemImages(itemId, newImages = [], isInvoice = false) {
+  if (isReadOnlyMode) return;
+  const existing = await db.items.get(itemId);
+  if (!existing) return;
+  if (isInvoice) {
+    const updatedInvoices = [...(existing.invoiceImages || []), ...newImages];
+    await db.items.update(itemId, { invoiceImages: updatedInvoices });
+  } else {
+    const updatedImages = [...(existing.images || []), ...newImages];
+    await db.items.update(itemId, { images: updatedImages });
+  }
+  await touchLastUpdated(true);
+}
+
+/**
+ * Remove a specific image from an item
+ */
+export async function removeItemImage(itemId, imageId) {
+  if (isReadOnlyMode) return;
+  const existing = await db.items.get(itemId);
+  if (!existing) return;
+  const updatedImages = (existing.images || []).filter((img) => img.id !== imageId);
+  const updatedInvoices = (existing.invoiceImages || []).filter((img) => img.id !== imageId);
+  await db.items.update(itemId, {
+    images: updatedImages,
+    invoiceImages: updatedInvoices
+  });
+  await touchLastUpdated(true);
 }
 
 /**
@@ -743,11 +993,11 @@ export async function saveItem(itemData, lang = 'ar') {
 export async function deleteItem(itemId) {
   if (isReadOnlyMode) return;
   await db.items.delete(itemId);
-  await touchLastUpdated();
+  await touchLastUpdated(true);
 }
 
 /**
- * Save or Create a Category
+ * Save or Create a Category (including category cover image & subcategory metadata)
  */
 export async function saveCategory(catData, lang = 'ar') {
   if (isReadOnlyMode) return catData;
@@ -763,13 +1013,38 @@ export async function saveCategory(catData, lang = 'ar') {
     nameEn: lang === 'en' ? trimmedName : existing?.nameEn || trimmedName,
     description: lang === 'ar' ? trimmedDesc : existing?.description || trimmedDesc,
     descriptionEn: lang === 'en' ? trimmedDesc : existing?.descriptionEn || trimmedDesc,
-    icon: catData.icon || 'Sparkles',
-    color: catData.color || '#D88C9A',
+    icon: catData.icon || existing?.icon || 'Sparkles',
+    color: catData.color || existing?.color || '#D88C9A',
+    image: catData.image !== undefined ? catData.image : existing?.image || null,
+    subcategoriesMeta:
+      catData.subcategoriesMeta !== undefined
+        ? catData.subcategoriesMeta
+        : existing?.subcategoriesMeta || {},
     order: catData.order || existing?.order || count + 1
   };
   await db.categories.put(record);
-  await touchLastUpdated();
+  await touchLastUpdated(true);
   return record;
+}
+
+/**
+ * Save photo & notes for a specific subcategory inside a category
+ */
+export async function saveSubcategoryMeta(categoryId, subcategoryName, meta) {
+  if (isReadOnlyMode) return;
+  const existing = await db.categories.get(categoryId);
+  if (!existing) return;
+  const currentMeta = existing.subcategoriesMeta || {};
+  const updatedMeta = {
+    ...currentMeta,
+    [subcategoryName]: {
+      ...(currentMeta[subcategoryName] || {}),
+      ...meta,
+      updatedAt: new Date().toISOString()
+    }
+  };
+  await db.categories.update(categoryId, { subcategoriesMeta: updatedMeta });
+  await touchLastUpdated(true);
 }
 
 /**
@@ -781,11 +1056,11 @@ export async function deleteCategory(categoryId) {
     await db.items.where('categoryId').equals(categoryId).delete();
     await db.categories.delete(categoryId);
   });
-  await touchLastUpdated();
+  await touchLastUpdated(true);
 }
 
 /**
- * Update overall app settings (budget, bride name, phone, wedding date, language, theme)
+ * Update overall app settings
  */
 export async function updateAppSettings(partialSettings) {
   if (isReadOnlyMode) return partialSettings;
@@ -810,6 +1085,8 @@ export async function exportDatabasePayload() {
     db.items.toArray(),
     db.settings.get('app-settings')
   ]);
+
+  await markBackupCompleted();
 
   return {
     appName: 'رفيقة العروسة - لتنظيم ومتابعة الجهاز',
@@ -849,6 +1126,7 @@ export async function restoreDatabaseFromPayload(payload) {
         ...defaultSettings,
         ...payload.settings,
         id: 'app-settings',
+        hasUnbackedChanges: false,
         lastUpdated: new Date().toISOString()
       });
     }
@@ -858,27 +1136,258 @@ export async function restoreDatabaseFromPayload(payload) {
 }
 
 /**
- * Reset database back to factory pre-seeded state (preserving current language & theme)
+ * Reset database back to factory pre-seeded state (preserving current language, theme & gender)
  */
-export async function resetDatabaseToDefault() {
+export async function resetDatabaseToDefault(genderOverride = null) {
   if (isReadOnlyMode) return;
   const currentSettings = await db.settings.get('app-settings');
+  const targetGender = genderOverride || currentSettings?.gender || 'female';
+  const isMale = targetGender === 'male';
+
   await db.transaction('rw', db.categories, db.items, db.settings, async () => {
     await db.categories.clear();
     await db.items.clear();
     await db.settings.clear();
-    await db.categories.bulkPut(initialCategories);
-    await db.items.bulkPut(initialItems);
+    await db.categories.bulkPut(isMale ? groomInitialCategories : initialCategories);
+    await db.items.bulkPut(isMale ? groomInitialItems : initialItems);
     await db.settings.put({
       ...defaultSettings,
-      brideName: currentSettings?.brideName || 'أحلى عروسة',
+      gender: targetGender,
+      brideName:
+        currentSettings?.brideName &&
+        currentSettings.brideName !== 'Lovely Bride' &&
+        currentSettings.brideName !== 'أحلى عروسة' &&
+        currentSettings.brideName !== 'أحلى عريس'
+          ? currentSettings.brideName
+          : isMale
+          ? 'أحلى عريس'
+          : 'أحلى عروسة',
       phoneNumber: currentSettings?.phoneNumber || '',
       weddingDate: currentSettings?.weddingDate || '',
       language: currentSettings?.language || 'ar',
       theme: currentSettings?.theme || 'light',
+      hasUnbackedChanges: false,
       lastUpdated: new Date().toISOString()
     });
   });
 
   await syncCurrentDexieToCloud();
 }
+
+/**
+ * Switch account between Bride ('female') and Groom ('male') mode,
+ * optionally loading the default categories & items for that gender if currently using unmodified seed data or requested.
+ */
+export async function switchAccountGenderAndTemplate(newGender = 'female', loadGenderChecklist = true) {
+  if (isReadOnlyMode) return;
+  if (loadGenderChecklist) {
+    await resetDatabaseToDefault(newGender);
+  } else {
+    await updateAppSettings({ gender: newGender });
+  }
+}
+
+/**
+ * Encode a compact shareable snapshot for the Fiancé (no registration required)
+ */
+export function encodeSharePayload(data) {
+  try {
+    const json = JSON.stringify(data);
+    return btoa(encodeURIComponent(json));
+  } catch (err) {
+    console.error('Failed to encode share payload:', err);
+    return '';
+  }
+}
+
+/**
+ * Decode a shareable snapshot from URL hash (#share=...)
+ */
+export function decodeSharePayload(encodedStr) {
+  try {
+    const json = decodeURIComponent(atob(encodedStr));
+    return JSON.parse(json);
+  } catch (err) {
+    console.error('Failed to decode share payload:', err);
+    return null;
+  }
+}
+
+/**
+ * Default Shared Agreements list for the Couple Room ("شقتنا المشتركة")
+ */
+export const DEFAULT_COUPLE_AGREEMENTS = [
+  { id: 'agr-1', title: 'الأثاث والخشب الكامل (نوم، سفرة، صالون، ركنة)', assignedTo: 'groom', status: 'in_progress', budgetNote: '' },
+  { id: 'agr-2', title: 'تشطيب الشقة والسباكة والكهرباء والدهانات', assignedTo: 'groom', status: 'in_progress', budgetNote: '' },
+  { id: 'agr-3', title: 'الأجهزة الكهربائية الكبيرة والرفايع', assignedTo: 'bride', status: 'in_progress', budgetNote: '' },
+  { id: 'agr-4', title: 'أطقم المطبخ والصيني والحلل والمفروشات', assignedTo: 'bride', status: 'in_progress', budgetNote: '' },
+  { id: 'agr-5', title: 'التكييفات والسخان والشفاط', assignedTo: 'shared', status: 'pending', budgetNote: 'بالاتفاق بين الطرفين' },
+  { id: 'agr-6', title: 'السجاد والستائر والنجف', assignedTo: 'shared', status: 'pending', budgetNote: 'بالاتفاق بين الطرفين' },
+  { id: 'agr-7', title: 'قاعة الفرح والتصوير وشهر العسل', assignedTo: 'groom', status: 'pending', budgetNote: '' }
+];
+
+/**
+ * Link current user's account with their partner (Bride <-> Groom) by Partner Code, Phone Number, or Email
+ */
+export async function linkWithPartnerByCodeOrPhone(searchInput) {
+  const clean = String(searchInput || '').trim();
+  if (!clean) {
+    throw new Error('يرجى إدخال كود الشريك (مثال: MSH-1A2B) أو رقم الموبايل.');
+  }
+
+  const usersRef = collection(firestoreDb, 'users');
+  const upperCode = clean.toUpperCase();
+
+  // Try matching by partnerCode, phoneNumber, or email
+  const snapAll = await getDocs(usersRef);
+  let matchedUser = null;
+
+  snapAll.forEach((docSnap) => {
+    const data = docSnap.data();
+    if (!data || data.uid === activeCloudUid) return;
+    const pCode = String(data.partnerCode || `MSH-${String(data.uid || '').slice(0, 4)}`).toUpperCase();
+    const phone = String(data.phoneNumber || '').trim();
+    const email = String(data.email || '').trim().toLowerCase();
+
+    if (
+      pCode === upperCode ||
+      pCode.replace('MSH-', '') === upperCode.replace('MSH-', '') ||
+      (phone && phone === clean) ||
+      (email && email === clean.toLowerCase())
+    ) {
+      matchedUser = data;
+    }
+  });
+
+  if (!matchedUser) {
+    throw new Error(
+      'لم يتم العثور على حساب شريك بهذا الكود أو رقم الموبايل. تأكد من أن شريكك سجل حساباً على المنصة.'
+    );
+  }
+
+  await updateAppSettings({
+    linkedPartnerUid: matchedUser.uid,
+    linkedPartnerName: matchedUser.brideName || 'شريك حياتي',
+    linkedPartnerGender: matchedUser.gender || 'female'
+  });
+
+  // Also reciprocally set linkedPartnerUid on partner's user doc if possible
+  if (activeCloudUid) {
+    try {
+      await setDoc(
+        doc(firestoreDb, 'users', matchedUser.uid),
+        { linkedPartnerUid: activeCloudUid },
+        { merge: true }
+      );
+    } catch {
+      // ignore if restricted
+    }
+  }
+
+  return matchedUser;
+}
+
+/**
+ * Subscribe in real time to the linked partner's profile & trousseau data
+ */
+export function subscribeToLinkedPartnerData(partnerUid, callback) {
+  if (!partnerUid) return () => {};
+
+  const partnerUserRef = doc(firestoreDb, 'users', partnerUid);
+  const partnerTrousseauRef = doc(firestoreDb, 'users', partnerUid, 'data', 'trousseau');
+
+  let latestProfile = null;
+  let latestTrousseau = null;
+
+  const emit = () => {
+    if (callback) {
+      callback({
+        profile: latestProfile,
+        trousseau: latestTrousseau
+      });
+    }
+  };
+
+  const unsub1 = onSnapshot(
+    partnerUserRef,
+    (snap) => {
+      if (snap.exists()) {
+        latestProfile = snap.data();
+        emit();
+      }
+    },
+    () => {}
+  );
+
+  const unsub2 = onSnapshot(
+    partnerTrousseauRef,
+    (snap) => {
+      if (snap.exists()) {
+        latestTrousseau = snap.data();
+        emit();
+      }
+    },
+    () => {}
+  );
+
+  return () => {
+    unsub1();
+    unsub2();
+  };
+}
+
+/**
+ * Default Finishing Custody Ledger structure
+ */
+export const DEFAULT_FINISHING_LEDGER = {
+  engineerName: '',
+  engineerPhone: '',
+  apartmentTitle: 'تشطيب شقة الزوجية',
+  supervisionFeePercent: 0,
+  advances: [],
+  expenses: []
+};
+
+/**
+ * Create a shareable Engineer Custody Ledger link (saved to Firestore `shared_profiles/eng_{id}` + hash fallback)
+ */
+export async function createEngineerLedgerShareLink({
+  ledger,
+  ownerName = 'صاحب الشقة'
+}) {
+  const cleanLedger = ledger || DEFAULT_FINISHING_LEDGER;
+  const shareId = `eng-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const nowIso = new Date().toISOString();
+
+  const payload = {
+    shareId,
+    type: 'engineer_ledger',
+    ownerName,
+    engineerName: cleanLedger.engineerName || 'المهندس المشرف',
+    engineerPhone: cleanLedger.engineerPhone || '',
+    apartmentTitle: cleanLedger.apartmentTitle || 'تشطيب شقة الزوجية',
+    supervisionFeePercent: Number(cleanLedger.supervisionFeePercent) || 0,
+    advances: Array.isArray(cleanLedger.advances) ? cleanLedger.advances : [],
+    expenses: Array.isArray(cleanLedger.expenses) ? cleanLedger.expenses : [],
+    createdAt: nowIso
+  };
+
+  let shareUrl = '';
+  try {
+    await setDoc(doc(firestoreDb, 'shared_profiles', shareId), payload);
+    shareUrl = `${window.location.origin}${window.location.pathname}?engineer_ledger=${shareId}`;
+  } catch (err) {
+    console.warn('Cloud engineer share fallback to URL hash:', err);
+    // Compact hash fallback without heavy base64 images if offline
+    const compactPayload = {
+      ...payload,
+      advances: payload.advances.map(({ receiptImages, ...rest }) => rest),
+      expenses: payload.expenses.map(({ invoiceImages, ...rest }) => rest)
+    };
+    const encoded = encodeSharePayload(compactPayload);
+    shareUrl = `${window.location.origin}${window.location.pathname}#engineer_ledger=${encoded}`;
+  }
+
+  return { shareId, shareUrl, payload };
+}
+

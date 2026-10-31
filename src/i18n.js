@@ -1,14 +1,14 @@
 // Full Bilingual Dictionary (English & Arabic) and Localization Helpers
 import { initialCategories, initialItems } from './seedData';
+import { groomInitialCategories, groomInitialItems } from './groomSeedData';
 
-// Fast lookup maps for seeded categories & items in case an older DB record doesn't have *En fields yet
 const seedCategoryMap = {};
-initialCategories.forEach((c) => {
+[...initialCategories, ...groomInitialCategories].forEach((c) => {
   seedCategoryMap[c.id] = c;
 });
 
 const seedItemMap = {};
-initialItems.forEach((i) => {
+[...initialItems, ...groomInitialItems].forEach((i) => {
   seedItemMap[i.id] = i;
 });
 
@@ -56,14 +56,98 @@ export function getLocalizedItem(item, lang = 'en') {
 
 export const translations = {
   en: {
-    appName: "Bride's Companion",
-    appSubtitle: 'Offline Bridal Trousseau, Budget & Installments Planner',
+    appName: 'Meshwarna | م-شوارنا',
+    appSubtitle: 'Smart Bride & Groom Trousseau, Apartment & Budget Planner',
     autoSavedBadge: 'Auto-saved on your device ✓',
+    unbackedOfflineBadge: 'Offline edits pending backup',
     searchPlaceholder: 'Search any item, brand, or note...',
     installApp: 'Install App',
     printReportBtn: 'Print List',
     addItemBtn: 'Add Item',
     newItemShort: 'New Item',
+
+    // Navigation History & Safe Refresh
+    navBackTooltip: 'Go Back (Previous View)',
+    navForwardTooltip: 'Go Forward (Next View)',
+    navRefreshTooltip: 'Refresh Page (With Data Safety Check)',
+    refreshWarningTitle: 'Hold On! Protect Your Latest Edits 🌸',
+    refreshWarningDesc:
+      'You have recent offline edits or unsaved text that have not been exported to an external backup file yet.Refreshing keeps your local browser database, but we recommend saving a quick backup first so zero data is ever lost.',
+    refreshUnsavedFormWarn:
+      'You currently have an open form with unsaved text! Refreshing now will discard what you just typed.',
+    downloadBackupFirstBtn: 'Download Backup First (Recommended)',
+    refreshAnywayBtn: 'Refresh Page Now',
+    stayOnPageBtn: 'Stay & Continue Editing',
+
+    // Share with Fiancé Feature
+    shareWithFianceBtn: 'Share with Fiancé 💍',
+    shareModalTitle: 'Share Trousseau & Favorites with Fiancé 💍',
+    shareModalSubtitle:
+      'Generate an instant link for your fiancé—he can view what you bought & your favorites and add his suggestions without creating an account!',
+    fianceNameLabel: "Fiancé's Name (Optional)",
+    fianceNamePlaceholder: 'e.g., Ahmed',
+    whatToShareLabel: 'Choose What to Include in the Link:',
+    shareOptPurchased: 'Purchased Items ✅',
+    shareOptFavorites: 'Favorites & Priorities ⭐',
+    shareOptRemaining: 'Remaining Items ⏳',
+    shareOptPrices: 'Include Prices & Budget Details 💰',
+    personalMessageToFianceLabel: 'Sweet Note or Question for Him (Optional)',
+    personalMessageToFiancePlaceholder:
+      'e.g., Check out the appliances I marked as favorites and let me know which brand you prefer!',
+    copyShareLinkBtn: 'Copy Direct Link (No Login Needed)',
+    linkCopiedMsg: 'Share link copied! Send it to your fiancé now ✓',
+    sendViaWhatsappToFianceBtn: 'Send to Fiancé via WhatsApp 💬',
+    previewFianceModeBtn: 'Preview Fiancé View 👁️',
+    importFianceReplyTitle: "Have a Suggestion Code/Link from Your Fiancé?",
+    importFianceReplyPlaceholder: 'Paste your fiancé reply code or link here...',
+    importFianceReplyBtn: 'Import His Suggestions',
+    fianceReplyImportedSuccess: (count) =>
+      `Imported ${count} suggestions & notes from your fiancé! 💕`,
+
+    // Fiancé Guest View (No Registration Required)
+    fianceViewBannerBadge: 'Shared Bridal Trousseau • Guest View (No Login Needed)',
+    fianceViewTitle: (bride, groom) =>
+      groom ? `${bride} & ${groom}'s Trousseau List 💍` : `${bride}'s Shared Trousseau List 💍`,
+    fianceViewSubtitle:
+      'Browse purchased items and favorites below. You can write your opinion, price quotes, or suggest new items and send them back in one tap!',
+    exitFianceViewBtn: 'Exit Guest Preview / Back to Bride App',
+    fianceFilterAll: 'All Shared',
+    fianceFilterFavorites: "Bride's Favorites ⭐",
+    fianceFilterPurchased: 'Already Bought ✅',
+    fianceFilterSuggestions: 'My Suggestions 💬',
+    addFianceCommentPlaceholder: 'Write your opinion, preferred brand, or price quote...',
+    saveFianceCommentBtn: 'Save Note',
+    fianceApprovedBadge: 'Approved by Fiancé 👍',
+    toggleApproveBtn: 'Approve / Like 👍',
+    fianceSuggestNewItemTitle: 'Suggest an Item or Brand to the Bride',
+    fianceSuggestItemNamePlaceholder: 'e.g., LG 55" OLED TV at Cairo Sales for 21,000 EGP',
+    fianceSuggestItemNotePlaceholder: 'Store name, price quote, or why you recommend it...',
+    addSuggestionBtn: 'Add Suggestion',
+    sendSuggestionsBackToBrideBtn: 'Send My Suggestions Back to Bride 💬',
+    copyReplyCodeBtn: 'Copy Reply Link for Bride',
+    replyCopiedForBrideMsg:
+      'Reply link copied! Send it to the bride on WhatsApp so it imports into her app ✓',
+    fianceNoteLabel: "Fiancé's Note / Suggestion:",
+
+    // Image & Invoice Uploads
+    itemPhotosTitle: 'Product & Price Quote Photos 📸',
+    itemPhotosSubtitle: 'Upload photos of models, price tags, or store quotes to compare',
+    uploadItemPhotoBtn: 'Add Product / Quote Photo',
+    invoicePhotosTitle: 'Purchase Invoices & Warranty Receipts 🧾',
+    invoicePhotosSubtitle: 'Keep photos of receipts, warranty cards, and installment contracts safe',
+    uploadInvoicePhotoBtn: 'Add Invoice / Receipt Photo',
+    categoryCoverPhotoLabel: 'Category Cover Photo (Optional)',
+    uploadCategoryPhotoBtn: 'Upload Category Image',
+    removePhotoBtn: 'Remove',
+    subcategoryGalleryTitle: 'Subcategories Visual Guide & Notes',
+    subcategoryPhotoAndNotesModalTitle: (sub) => `Subcategory Details: ${sub}`,
+    subcategoryNotesLabel: 'Subcategory Notes / Price Quotes Summary',
+    subcategoryNotesPlaceholder: 'Write store comparisons, measurements, or notes for this subcategory...',
+    uploadSubcategoryPhotoBtn: 'Upload Subcategory Photo',
+    saveSubcategoryMetaBtn: 'Save Subcategory Details',
+    QuickPhotoBtnLabel: 'Photos / Invoice',
+    invoicesCountBadge: (n) => `${n} Invoice${n > 1 ? 's' : ''}`,
+    photosCountBadge: (n) => `${n} Photo${n > 1 ? 's' : ''}`,
 
     // Navigation Tabs
     navDashboard: 'Dashboard',
@@ -113,7 +197,7 @@ export const translations = {
     // Category Breakdown
     categoryBreakdownTitle: 'Categories & Completion Progress',
     categoryBreakdownSubtitle:
-      'Tap any category to explore items, update quantities, or record prices',
+      'Tap any category to explore items, upload invoices/photos, or record prices',
     addCustomCategoryBtn: 'Add Custom Category',
     categoryDefaultDesc: 'Category items and essentials',
     completedCount: (done, total) => `${done} of ${total} done`,
@@ -126,7 +210,7 @@ export const translations = {
     filterPurchased: 'Purchased ✅',
     filterRemaining: 'Remaining ⏳',
     filterInstallments: 'Has Installments 💰',
-    subcategoryLabel: 'Subcategory:',
+    subcategoryLabel: 'Subcategories (Tap to filter or add photo/notes):',
     allSubcategories: 'All Subcategories',
     allCategories: 'All Categories',
 
@@ -151,16 +235,16 @@ export const translations = {
     estPriceLabel: 'Est:',
     recordPriceBtn: 'Set Price',
     remainingBadge: 'Due:',
-    editItemTooltip: 'Edit details & price',
+    editItemTooltip: 'Edit details, photos & price',
     deleteItemTooltip: 'Delete item',
     priorityTooltipAdd: 'Add to shopping priorities',
     priorityTooltipRemove: 'Remove from priorities',
 
     // Item Modal
-    editItemModalTitle: 'Edit Item & Financial Details',
+    editItemModalTitle: 'Edit Item, Photos, Invoices & Price',
     addItemModalTitle: 'Add New Trousseau Item',
     itemModalSubtitle:
-      'Record prices, quantities, installments, or brand notes—saved instantly',
+      'Record prices, quantities, installments, price quote photos, or invoices—saved instantly',
     itemNameLabel: 'Item / Product Name *',
     itemNamePlaceholder: 'e.g., Sharp 18 cu.ft Inverter Digital Fridge',
     mainCategoryLabel: 'Main Category',
@@ -181,14 +265,14 @@ export const translations = {
     remainingMerchantAmountLabel: 'Remaining Balance Due (EGP)',
     actualTotalSummary: 'Actual Total:',
     remainingToPaySummary: 'Remaining Due:',
-    notesLabel: 'Notes (Brand, Color, Size, Store Name, Warranty)',
+    notesLabel: 'Notes (Brand, Price Quotes, Color, Store Name, Warranty)',
     notesPlaceholder:
-      'Write brand name, showroom, warranty period, or delivery date...',
+      'Write brand name, price quotes from different stores, showroom, or warranty info...',
     saveItemBtn: 'Save Item',
     itemNameRequiredError: 'Please enter the item name first',
 
     // Category Modal
-    editCategoryModalTitle: 'Edit Category',
+    editCategoryModalTitle: 'Edit Category & Photo',
     addCategoryModalTitle: 'Add New Category',
     categoryNameLabel: 'Category Name *',
     categoryNamePlaceholder: 'e.g., Wedding & Honeymoon Prep',
@@ -203,7 +287,7 @@ export const translations = {
     shoppingModeBadge: 'Smart Shopping & Quick Filter Mode',
     shoppingModeTitle: 'Market Shopping List & Priorities',
     shoppingModeSubtitle:
-      'Use quick filters to focus on your next shopping trip priorities, remaining items, or merchant installments.',
+      'Use quick filters to focus on your next shopping trip priorities, capture store price quote photos, or track installments.',
     quickAddItemBtn: 'Quick Add Item',
     displayedItemsCount: (count) => `Displayed Items: ${count}`,
     remainingPrioritiesCount: (count) => `Remaining Priorities: ${count}`,
@@ -218,13 +302,13 @@ export const translations = {
     offlineProtectionBadge: '100% Offline Data Protection',
     backupCenterTitle: 'Safety, Backup & Print Center',
     backupCenterSubtitle:
-      'All your items and prices are automatically saved on your device. Export a backup to WhatsApp or Google Drive anytime in one tap.',
+      'All your items, photos, invoices, and prices are automatically saved on your device. Export a backup to WhatsApp or Google Drive anytime.',
     persistentStorageActive: 'Persistent Storage Protected ✓',
     autoSaveActive: 'Auto-Save Active on Device ✓',
     lastUpdatedLabel: 'Last updated:',
     exportShareCardTitle: 'Save & Share Backup File',
     exportShareCardDesc:
-      'Download a complete JSON backup of your categories, items, and prices, or share it directly to your WhatsApp or Google Drive.',
+      'Download a complete JSON backup of your categories, items, photos, and prices, or share it directly to your WhatsApp or Google Drive.',
     downloadJsonBtn: 'Download Backup (JSON)',
     shareWhatsappBtn: 'Share via WhatsApp / Drive',
     restoreCardTitle: 'Restore from Previous Backup',
@@ -282,14 +366,98 @@ export const translations = {
   },
 
   ar: {
-    appName: 'رفيقة العروسة',
-    appSubtitle: 'لتنظيم ومتابعة جهاز العروسة والميزانية والأقساط بدون إنترنت',
+    appName: 'م-شوارنا',
+    appSubtitle: 'لتنظيم ومتابعة جهاز العروسة وتجهيزات العريس والميزانية والأقساط',
     autoSavedBadge: 'تم الحفظ تلقائياً على جهازك ✓',
+    unbackedOfflineBadge: 'تعديلات بدون نت لم تُنسخ احتياطياً بعد',
     searchPlaceholder: 'ابحثي عن أي جهاز، ماركة، أو ملاحظة...',
     installApp: 'تثبيت التطبيق',
     printReportBtn: 'كشف الطباعة',
     addItemBtn: 'إضافة بند',
     newItemShort: 'بند جديد',
+
+    // Navigation History & Safe Refresh
+    navBackTooltip: 'رجوع للخطوة السابقة',
+    navForwardTooltip: 'تقدم للخطوة التالية',
+    navRefreshTooltip: 'تحديث الصفحة (مع تنبيه حماية البيانات)',
+    refreshWarningTitle: 'انتبهي يا عروسة قبل التحديث! 🌸',
+    refreshWarningDesc:
+      'لديكِ تعديلات أو عمليات تمت بدون إنترنت لم يتم تصدير نسخة احتياطية خارجية لها بعد (أو كتابة لم يتم حفظها). ننصح بتحميل نسخة احتياطية سريعة أولاً لضمان عدم ضياع أي بيانات أبداً.',
+    refreshUnsavedFormWarn:
+      'لديكِ نافذة مفتوحة بها بيانات قيد الكتابة لم تضغطي على حفظ لها بعد! التحديث الآن سيلغي ما كتبتِه.',
+    downloadBackupFirstBtn: 'تحميل نسخة احتياطية أولاً (مستحسن)',
+    refreshAnywayBtn: 'تحديث الصفحة الآن',
+    stayOnPageBtn: 'البقاء ومتابعة التعديل',
+
+    // Share with Fiancé Feature
+    shareWithFianceBtn: 'مشاركة مع خطيبي 💍',
+    shareModalTitle: 'مشاركة المشتريات والمفضلة مع خطيبك 💍',
+    shareModalSubtitle:
+      'انسخي رابطاً مباشراً لخطيبك ليرى ما اشتريتِه وقائمة المفضلة والأولويات ويضيف مقترحاته وتعليقاته فوراً بدون الحاجة لأي تسجيل في الموقع!',
+    fianceNameLabel: 'اسم الخطيب (اختياري)',
+    fianceNamePlaceholder: 'مثال: أحمد',
+    whatToShareLabel: 'اختاري ما يظهر له في الرابط:',
+    shareOptPurchased: 'البنود التي تم شراؤها ✅',
+    shareOptFavorites: 'الأولويات والمفضلة ⭐',
+    shareOptRemaining: 'البنود المتبقية للشراء ⏳',
+    shareOptPrices: 'إظهار الأسعار والتفاصيل المالية 💰',
+    personalMessageToFianceLabel: 'رسالة أو سؤال لخطيبك يظهر أعلى الصفحة (اختياري)',
+    personalMessageToFiancePlaceholder:
+      'مثال: شوف الأجهزة اللي حطيتها في المفضلة وقولي رأيك نختار أي ماركة فيهم!',
+    copyShareLinkBtn: 'نسخ رابط المشاركة المباشر (بدون تسجيل)',
+    linkCopiedMsg: 'تم نسخ الرابط! أرسليه لخطيبك الآن ليفتحه مباشرة ✓',
+    sendViaWhatsappToFianceBtn: 'إرسال لخطيبي عبر واتساب 💬',
+    previewFianceModeBtn: 'معاينة صفحة الخطيب 👁️',
+    importFianceReplyTitle: 'هل أرسل لكِ خطيبك رابط أو كود مقترحاته؟',
+    importFianceReplyPlaceholder: 'الصقي رابط أو كود رد الخطيب هنا لإضافته لجهازك...',
+    importFianceReplyBtn: 'استيراد مقترحات خطيبي',
+    fianceReplyImportedSuccess: (count) =>
+      `تم استيراد ${count} مقترحات وملاحظات من خطيبك بنجاح! 💕`,
+
+    // Fiancé Guest View (No Registration Required)
+    fianceViewBannerBadge: 'صفحة مشاركة الجهاز • تصفح مباشر بدون تسجيل حساب',
+    fianceViewTitle: (bride, groom) =>
+      groom ? `قائمة جهاز ${bride} و ${groom} 💍` : `قائمة جهاز ومفضلة ${bride} 💍`,
+    fianceViewSubtitle:
+      'تصفح المشتريات والمفضلة بالأسفل، ويمكنك كتابة رأيك أو عروض الأسعار أو اقتراح أصناف جديدة وإرسالها للعروسة بضغطة واحدة!',
+    exitFianceViewBtn: 'إغلاق المعاينة والعودة لوضع العروسة',
+    fianceFilterAll: 'كل المشترك',
+    fianceFilterFavorites: 'مفضلة العروسة ⭐',
+    fianceFilterPurchased: 'تم شراؤه ✅',
+    fianceFilterSuggestions: 'مقترحاتي وتعليقاتي 💬',
+    addFianceCommentPlaceholder: 'اكتب رأيك، الماركة المفضلة، أو عرض سعر وجدته...',
+    saveFianceCommentBtn: 'حفظ رأيي',
+    fianceApprovedBadge: 'نال إعجاب الخطيب 👍',
+    toggleApproveBtn: 'موافق / أعجبني 👍',
+    fianceSuggestNewItemTitle: 'اقترح صنفاً أو عرض سعر جديد للعروسة',
+    fianceSuggestItemNamePlaceholder: 'مثال: شاشة LG 55 بوصة عليها عرض ممتاز',
+    fianceSuggestItemNotePlaceholder: 'اسم المعرض، السعر، أو سبب ترشيحك لهذا الصنف...',
+    addSuggestionBtn: 'إضافة المقترح',
+    sendSuggestionsBackToBrideBtn: 'إرسال مقترحاتي ورأيي للعروسة عبر واتساب 💬',
+    copyReplyCodeBtn: 'نسخ رابط ردي ومقترحاتي للعروسة',
+    replyCopiedForBrideMsg:
+      'تم نسخ رابط مقترحاتك! أرسله للعروسة على واتساب لتفتحه وتنزل مقترحاتك عندها ✓',
+    fianceNoteLabel: 'رأي / مقترح الخطيب:',
+
+    // Image & Invoice Uploads
+    itemPhotosTitle: 'صور الصنف وعروض الأسعار 📸',
+    itemPhotosSubtitle: 'ارفعي صور الأجهزة أو عروض الأسعار في المعارض للمقارنة بينها',
+    uploadItemPhotoBtn: 'إضافة صورة صنف / عرض سعر',
+    invoicePhotosTitle: 'صور فواتير الشراء وشهادات الضمان 🧾',
+    invoicePhotosSubtitle: 'احتفظي بصور الفواتير، الإيصالات، والضمان لحمايتها من الضياع',
+    uploadInvoicePhotoBtn: 'إضافة صورة فاتورة / ضمان',
+    categoryCoverPhotoLabel: 'صورة غلاف القسم (اختياري)',
+    uploadCategoryPhotoBtn: 'رفع صورة للقسم',
+    removePhotoBtn: 'حذف الصورة',
+    subcategoryGalleryTitle: 'صور وملاحظات التصنيفات الفرعية داخل القسم',
+    subcategoryPhotoAndNotesModalTitle: (sub) => `تفاصيل وصور تصنيف: ${sub}`,
+    subcategoryNotesLabel: 'ملاحظات وعروض أسعار هذا التصنيف الفرعي',
+    subcategoryNotesPlaceholder: 'اكتبي مقارنات الأسعار أو المقاسات أو أسماء المحلات لهذا التصنيف...',
+    uploadSubcategoryPhotoBtn: 'رفع صورة للتصنيف الفرعي',
+    saveSubcategoryMetaBtn: 'حفظ بيانات التصنيف',
+    QuickPhotoBtnLabel: 'صور / فاتورة',
+    invoicesCountBadge: (n) => `${n} فاتورة`,
+    photosCountBadge: (n) => `${n} صور`,
 
     // Navigation Tabs
     navDashboard: 'ملخص الجهاز',
@@ -339,7 +507,7 @@ export const translations = {
     // Category Breakdown
     categoryBreakdownTitle: 'تفاصيل الأقسام ونسب الإنجاز',
     categoryBreakdownSubtitle:
-      'اضغطي على أي قسم لاستعراض البنود، تعديل الكميات، أو تسجيل المشتريات',
+      'اضغطي على أي قسم لاستعراض البنود، رفع صور الفواتير وعروض الأسعار، أو تسجيل المشتريات',
     addCustomCategoryBtn: 'إضافة قسم مخصص',
     categoryDefaultDesc: 'بنود ومستلزمات القسم',
     completedCount: (done, total) => `${done} من ${total} مكتمل`,
@@ -352,7 +520,7 @@ export const translations = {
     filterPurchased: 'تم الشراء ✅',
     filterRemaining: 'متبقي للشراء ⏳',
     filterInstallments: 'عليه أقساط/متبقي مالي 💰',
-    subcategoryLabel: 'التصنيف الفرعي:',
+    subcategoryLabel: 'التصنيف الفرعي (اضغطي للفلترة أو إضافة صورة وملاحظة للتصنيف):',
     allSubcategories: 'كل التصنيفات',
     allCategories: 'كل الأقسام',
 
@@ -377,16 +545,16 @@ export const translations = {
     estPriceLabel: 'تقريبي:',
     recordPriceBtn: 'تسجيل السعر',
     remainingBadge: 'متبقي:',
-    editItemTooltip: 'تعديل التفاصيل والأسعار',
+    editItemTooltip: 'تعديل التفاصيل والصور والأسعار',
     deleteItemTooltip: 'حذف البند',
     priorityTooltipAdd: 'إضافة لأولويات التسوق',
     priorityTooltipRemove: 'إزالة من الأولويات',
 
     // Item Modal
-    editItemModalTitle: 'تعديل بيانات وتفاصيل البند',
+    editItemModalTitle: 'تعديل بيانات، صور، وفواتير البند',
     addItemModalTitle: 'إضافة بند جديد للجهاز',
     itemModalSubtitle:
-      'سجلي الأسعار، الكميات، الأقساط، أو الملاحظات ويتم الحفظ فوراً',
+      'سجلي الأسعار، الكميات، الأقساط، صور عروض الأسعار، أو الفواتير ويتم الحفظ فوراً',
     itemNameLabel: 'اسم البند / المنتج *',
     itemNamePlaceholder: 'مثال: ثلاجة شارب 18 قدم إنفرتر ديجيتال',
     mainCategoryLabel: 'القسم الرئيسي',
@@ -407,14 +575,14 @@ export const translations = {
     remainingMerchantAmountLabel: 'المبلغ المتبقي للتاجر (ج.م)',
     actualTotalSummary: 'الإجمالي الفعلي:',
     remainingToPaySummary: 'متبقي للسداد:',
-    notesLabel: 'ملاحظات (الماركة، اللون، المقاس، اسم المعرض، فترة الضمان)',
+    notesLabel: 'ملاحظات (الماركة، عروض الأسعار، اللون، اسم المعرض، فترة الضمان)',
     notesPlaceholder:
-      'اكتبي الماركة أو اسم التاجر أو تفاصيل الضمان وميعاد الاستلام...',
+      'اكتبي الماركة أو مقارنة عروض الأسعار أو اسم التاجر وتفاصيل الضمان...',
     saveItemBtn: 'حفظ البند',
     itemNameRequiredError: 'يرجى كتابة اسم البند أولاً',
 
     // Category Modal
-    editCategoryModalTitle: 'تعديل القسم',
+    editCategoryModalTitle: 'تعديل القسم وصورته',
     addCategoryModalTitle: 'إضافة قسم جديد للجهاز',
     categoryNameLabel: 'اسم القسم *',
     categoryNamePlaceholder: 'مثال: تجهيزات الفرح وشهر العسل',
@@ -429,7 +597,7 @@ export const translations = {
     shoppingModeBadge: 'وضع التسوق الذكي والفرز السريع',
     shoppingModeTitle: 'قائمة نزولة السوق والأولويات',
     shoppingModeSubtitle:
-      'استخدمي الفلاتر السريعة لعرض أولويات النزولة القادمة، أو البنود المتبقية، أو متابعة الأقساط والتجار.',
+      'استخدمي الفلاتر السريعة لعرض أولويات النزولة القادمة، أو تصوير عروض الأسعار في المحلات، أو متابعة الأقساط.',
     quickAddItemBtn: 'إضافة بند سريع',
     displayedItemsCount: (count) => `عدد البنود المعروضة: ${count} بند`,
     remainingPrioritiesCount: (count) => `أولويات متبقية للشراء: ${count}`,
@@ -444,13 +612,13 @@ export const translations = {
     offlineProtectionBadge: 'حماية البيانات 100% بدون إنترنت',
     backupCenterTitle: 'مركز الأمان والنسخ الاحتياطي والطباعة',
     backupCenterSubtitle:
-      'جميع بياناتك وأسعارك محفوظة تلقائياً في قاعدة بيانات محمية على موبايلك، ويمكنك أخذ نسخة احتياطية على واتساب أو جوجل درايف في ثوانٍ.',
+      'جميع بياناتك وصور الفواتير وأسعارك محفوظة تلقائياً في قاعدة بيانات محمية على موبايلك، ويمكنك أخذ نسخة احتياطية على واتساب أو جوجل درايف في ثوانٍ.',
     persistentStorageActive: 'التخزين الدائم مفعل ومحمي ✓',
     autoSaveActive: 'الحفظ التلقائي مفعل على جهازك ✓',
     lastUpdatedLabel: 'آخر تحديث:',
     exportShareCardTitle: 'حفظ ومشاركة نسخة احتياطية (Backup)',
     exportShareCardDesc:
-      'قومي بتنزيل ملف يحتوي على كل أقسامك وبنودك وأسعارك، أو أرسليه لنفسك على واتساب أو Google Drive بضغطة واحدة للرجوع إليه من أي موبايل آخر.',
+      'قومي بتنزيل ملف يحتوي على كل أقسامك وبنودك وصورك وأسعارك، أو أرسليه لنفسك على واتساب أو Google Drive بضغطة واحدة للرجوع إليه من أي موبايل آخر.',
     downloadJsonBtn: 'تحميل ملف النسخة (JSON)',
     shareWhatsappBtn: 'مشاركة عبر واتساب / درايف',
     restoreCardTitle: 'استعادة البيانات من نسخة سابقة (Restore)',

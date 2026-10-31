@@ -48,8 +48,8 @@ export default function AdminDashboard({
         const list = [];
         snapshot.forEach((docSnap) => {
           list.push({
-            uid: docSnap.id,
-            ...docSnap.data()
+            ...docSnap.data(),
+            uid: docSnap.id
           });
         });
         setUsersList(list);

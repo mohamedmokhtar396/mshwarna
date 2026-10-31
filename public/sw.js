@@ -1,8 +1,17 @@
-const CACHE_NAME = 'rafiqat-arousa-cache-v2';
+const CACHE_NAME = 'meshwarna-cache-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/manifest-groom.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+  '/favicon-64.png',
+  '/groom-icon-192.png',
+  '/groom-icon-512.png',
+  '/groom-apple-touch-icon.png',
+  '/groom-favicon-64.png',
   '/bridal-icon.svg'
 ];
 

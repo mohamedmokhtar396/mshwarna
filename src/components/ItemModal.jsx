@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -9,10 +9,14 @@ import {
   Calculator,
   StickyNote,
   Layers,
-  Tag
+  Tag,
+  Camera,
+  Receipt,
+  Trash2
 } from 'lucide-react';
 import { parseArabicNumber, formatCurrency } from '../db';
 import { translations, getLocalizedItem, getLocalizedCategory } from '../i18n';
+import { compressMultipleImages } from '../utils/imageUtils';
 
 export default function ItemModal({
   isOpen,
@@ -21,9 +25,13 @@ export default function ItemModal({
   initialItem,
   categories,
   defaultCategoryId,
-  lang = 'en'
+  lang = 'en',
+  onFormDirtyChange
 }) {
   const t = translations[lang] || translations.en;
+
+  const productPhotoRef = useRef(null);
+  const invoicePhotoRef = useRef(null);
 
   const [formData, setFormData] = useState({
     id: '',
@@ -38,7 +46,13 @@ export default function ItemModal({
     remainingAmount: '',
     isPurchased: false,
     isPriority: false,
-    notes: ''
+    brand: '',
+    storeName: '',
+    nextInstallmentDate: '',
+    deliveryDate: '',
+    notes: '',
+    images: [],
+    invoiceImages: []
   });
 
   const [paymentMode, setPaymentMode] = useState('full'); // 'full' | 'installment'
@@ -62,7 +76,13 @@ export default function ItemModal({
         remainingAmount: initialItem.remainingAmount ? String(initialItem.remainingAmount) : '',
         isPurchased: Boolean(initialItem.isPurchased),
         isPriority: Boolean(initialItem.isPriority),
-        notes: loc.displayNotes || ''
+        brand: initialItem.brand || '',
+        storeName: initialItem.storeName || '',
+        nextInstallmentDate: initialItem.nextInstallmentDate || '',
+        deliveryDate: initialItem.deliveryDate || '',
+        notes: loc.displayNotes || '',
+        images: initialItem.images || [],
+        invoiceImages: initialItem.invoiceImages || []
       });
     } else {
       setPaymentMode('full');
@@ -79,29 +99,39 @@ export default function ItemModal({
         remainingAmount: '',
         isPurchased: false,
         isPriority: false,
-        notes: ''
+        brand: '',
+        storeName: '',
+        nextInstallmentDate: '',
+        deliveryDate: '',
+        notes: '',
+        images: [],
+        invoiceImages: []
       });
     }
     setError('');
+    if (onFormDirtyChange) onFormDirtyChange(false);
   }, [initialItem, defaultCategoryId, categories, isOpen, lang]);
+
+  const updateField = (patch) => {
+    setFormData((prev) => ({ ...prev, ...patch }));
+    if (onFormDirtyChange) onFormDirtyChange(true);
+  };
 
   const handleActualPriceChange = (val) => {
     const actual = parseArabicNumber(val);
     if (paymentMode === 'full') {
-      setFormData((prev) => ({
-        ...prev,
+      updateField({
         actualPrice: val,
         paidAmount: val,
         remainingAmount: '0'
-      }));
+      });
     } else {
       const paid = parseArabicNumber(formData.paidAmount);
       const rem = Math.max(0, actual - paid);
-      setFormData((prev) => ({
-        ...prev,
+      updateField({
         actualPrice: val,
         remainingAmount: String(rem)
-      }));
+      });
     }
   };
 
@@ -109,11 +139,40 @@ export default function ItemModal({
     const paid = parseArabicNumber(val);
     const actual = parseArabicNumber(formData.actualPrice);
     const rem = Math.max(0, actual - paid);
-    setFormData((prev) => ({
-      ...prev,
+    updateField({
       paidAmount: val,
       remainingAmount: String(rem)
-    }));
+    });
+  };
+
+  const handleUploadPhotos = async (e, isInvoice = false) => {
+    const files = e.target.files;
+    if (!files || !files.length) return;
+    const compressed = await compressMultipleImages(files);
+    if (compressed.length > 0) {
+      if (isInvoice) {
+        updateField({
+          invoiceImages: [...(formData.invoiceImages || []), ...compressed]
+        });
+      } else {
+        updateField({
+          images: [...(formData.images || []), ...compressed]
+        });
+      }
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveImage = (imgId, isInvoice = false) => {
+    if (isInvoice) {
+      updateField({
+        invoiceImages: (formData.invoiceImages || []).filter((i) => i.id !== imgId)
+      });
+    } else {
+      updateField({
+        images: (formData.images || []).filter((i) => i.id !== imgId)
+      });
+    }
   };
 
   const handleSubmit = (e) => {
@@ -138,6 +197,7 @@ export default function ItemModal({
               : actual - paid
           );
 
+    if (onFormDirtyChange) onFormDirtyChange(false);
     onSave({
       ...formData,
       actualPrice: actual,
@@ -151,13 +211,13 @@ export default function ItemModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/55 backdrop-blur-xs overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, y: 40, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.97 }}
             transition={{ duration: 0.22 }}
-            className="w-full max-w-xl bg-bridal-bg rounded-t-3xl sm:rounded-3xl border border-bridal-border shadow-bridal-lg overflow-hidden max-h-[92vh] flex flex-col"
+            className="w-full max-w-2xl bg-bridal-bg rounded-t-3xl sm:rounded-3xl border border-bridal-border shadow-bridal-lg overflow-hidden max-h-[92vh] flex flex-col"
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-l from-bridal-roseLight to-bridal-cream border-b border-bridal-border">
@@ -171,7 +231,10 @@ export default function ItemModal({
               </div>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => {
+                  if (onFormDirtyChange) onFormDirtyChange(false);
+                  onClose();
+                }}
                 className="p-2 rounded-full bg-bridal-surface text-bridal-mauve hover:text-bridal-charcoal border border-bridal-border transition"
               >
                 <X className="w-5 h-5" />
@@ -194,7 +257,7 @@ export default function ItemModal({
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) => updateField({ name: e.target.value })}
                   placeholder={t.itemNamePlaceholder}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-bridal-surface border border-bridal-border focus:border-bridal-rose focus:ring-2 focus:ring-bridal-rose/20 outline-none text-sm font-medium text-bridal-charcoal"
                 />
@@ -209,7 +272,7 @@ export default function ItemModal({
                   </label>
                   <select
                     value={formData.categoryId}
-                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                    onChange={(e) => updateField({ categoryId: e.target.value })}
                     className="w-full px-3 py-2.5 rounded-xl bg-bridal-surface border border-bridal-border focus:border-bridal-rose outline-none text-sm text-bridal-charcoal"
                   >
                     {categories.map((cat) => {
@@ -231,7 +294,7 @@ export default function ItemModal({
                   <input
                     type="text"
                     value={formData.subcategory}
-                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                    onChange={(e) => updateField({ subcategory: e.target.value })}
                     placeholder={t.subcategoryPlaceholder}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-bridal-surface border border-bridal-border focus:border-bridal-rose outline-none text-sm text-bridal-charcoal"
                   />
@@ -244,13 +307,12 @@ export default function ItemModal({
                   type="button"
                   onClick={() => {
                     const nextPurchased = !formData.isPurchased;
-                    setFormData((prev) => ({
-                      ...prev,
+                    updateField({
                       isPurchased: nextPurchased,
                       purchasedQty: nextPurchased
-                        ? Math.max(Number(prev.purchasedQty) || 0, Number(prev.requiredQty) || 1)
-                        : prev.purchasedQty
-                    }));
+                        ? Math.max(Number(formData.purchasedQty) || 0, Number(formData.requiredQty) || 1)
+                        : formData.purchasedQty
+                    });
                   }}
                   className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-bold transition ${
                     formData.isPurchased
@@ -264,9 +326,7 @@ export default function ItemModal({
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, isPriority: !prev.isPriority }))
-                  }
+                  onClick={() => updateField({ isPriority: !formData.isPriority })}
                   className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-bold transition ${
                     formData.isPriority
                       ? 'bg-bridal-goldLight text-bridal-gold border-bridal-gold shadow-xs'
@@ -292,9 +352,7 @@ export default function ItemModal({
                     type="text"
                     inputMode="numeric"
                     value={formData.requiredQty}
-                    onChange={(e) =>
-                      setFormData({ ...formData, requiredQty: e.target.value })
-                    }
+                    onChange={(e) => updateField({ requiredQty: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl bg-bridal-surface border border-bridal-border text-center font-bold text-sm text-bridal-charcoal"
                   />
                 </div>
@@ -306,9 +364,7 @@ export default function ItemModal({
                     type="text"
                     inputMode="numeric"
                     value={formData.purchasedQty}
-                    onChange={(e) =>
-                      setFormData({ ...formData, purchasedQty: e.target.value })
-                    }
+                    onChange={(e) => updateField({ purchasedQty: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl bg-bridal-surface border border-bridal-border text-center font-bold text-sm text-bridal-charcoal"
                   />
                 </div>
@@ -328,11 +384,10 @@ export default function ItemModal({
                       type="button"
                       onClick={() => {
                         setPaymentMode('full');
-                        setFormData((prev) => ({
-                          ...prev,
-                          paidAmount: prev.actualPrice,
+                        updateField({
+                          paidAmount: formData.actualPrice,
                           remainingAmount: '0'
-                        }));
+                        });
                       }}
                       className={`px-2.5 py-1 rounded-lg font-bold transition ${
                         paymentMode === 'full'
@@ -378,9 +433,7 @@ export default function ItemModal({
                       type="text"
                       inputMode="decimal"
                       value={formData.estimatedPrice}
-                      onChange={(e) =>
-                        setFormData({ ...formData, estimatedPrice: e.target.value })
-                      }
+                      onChange={(e) => updateField({ estimatedPrice: e.target.value })}
                       placeholder="0"
                       className="w-full px-3.5 py-2 rounded-xl bg-bridal-cream/50 border border-bridal-border focus:border-bridal-rose outline-none text-sm text-bridal-mauve"
                     />
@@ -412,15 +465,53 @@ export default function ItemModal({
                         type="text"
                         inputMode="decimal"
                         value={formData.remainingAmount}
-                        onChange={(e) =>
-                          setFormData({ ...formData, remainingAmount: e.target.value })
-                        }
+                        onChange={(e) => updateField({ remainingAmount: e.target.value })}
                         placeholder="0"
                         className="w-full px-3.5 py-2 rounded-xl bg-bridal-goldLight border border-bridal-gold/40 outline-none text-sm font-bold text-bridal-gold"
                       />
                     </div>
                   </div>
                 )}
+
+                {/* Installment Due Date, Delivery Date, Store & Brand */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-bridal-border/70">
+                  {paymentMode === 'installment' && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-bridal-gold mb-1">
+                        📅 تاريخ القسط القادم (للتنبيه)
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.nextInstallmentDate || ''}
+                        onChange={(e) => updateField({ nextInstallmentDate: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded-xl bg-bridal-cream/60 border border-bridal-border text-xs font-bold text-bridal-charcoal"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-[11px] font-bold text-bridal-mauve mb-1">
+                      🚚 تاريخ الاستلام المتفق عليه
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.deliveryDate || ''}
+                      onChange={(e) => updateField({ deliveryDate: e.target.value })}
+                      className="w-full px-3 py-1.5 rounded-xl bg-bridal-cream/60 border border-bridal-border text-xs font-bold text-bridal-charcoal"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-bridal-mauve mb-1">
+                      🏪 اسم المعرض / الماركة
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.storeName || ''}
+                      onChange={(e) => updateField({ storeName: e.target.value })}
+                      placeholder="مثال: بي تك / معرض الأثاث"
+                      className="w-full px-3 py-1.5 rounded-xl bg-bridal-cream/60 border border-bridal-border text-xs font-bold text-bridal-charcoal"
+                    />
+                  </div>
+                </div>
 
                 {parseArabicNumber(formData.actualPrice) > 0 && (
                   <div className="text-[11px] text-bridal-mauve flex items-center justify-between pt-1">
@@ -440,6 +531,111 @@ export default function ItemModal({
                 )}
               </div>
 
+              {/* Photo & Invoice Upload Sections */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 1. Product / Price Quote Photos */}
+                <div className="bg-bridal-surface p-3.5 rounded-2xl border border-bridal-border space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-bridal-charcoal">
+                      {t.itemPhotosTitle}
+                    </span>
+                    <input
+                      ref={productPhotoRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handleUploadPhotos(e, false)}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => productPhotoRef.current?.click()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-bridal-roseLight text-bridal-roseDark text-[11px] font-bold hover:opacity-90"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>+</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-bridal-mauve leading-snug">
+                    {t.itemPhotosSubtitle}
+                  </p>
+                  {formData.images?.length > 0 && (
+                    <div className="flex items-center gap-2 overflow-x-auto pt-1 no-scrollbar">
+                      {formData.images.map((img) => (
+                        <div
+                          key={img.id}
+                          className="relative w-14 h-14 rounded-xl overflow-hidden border border-bridal-border flex-shrink-0 group"
+                        >
+                          <img
+                            src={img.dataUrl}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(img.id, false)}
+                            className="absolute top-0.5 right-0.5 p-1 rounded-full bg-black/65 text-white hover:bg-red-600 transition"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Purchase Invoices & Warranty Receipts */}
+                <div className="bg-bridal-surface p-3.5 rounded-2xl border border-bridal-border space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-bridal-charcoal">
+                      {t.invoicePhotosTitle}
+                    </span>
+                    <input
+                      ref={invoicePhotoRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handleUploadPhotos(e, true)}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => invoicePhotoRef.current?.click()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-bridal-goldLight text-bridal-gold text-[11px] font-bold hover:opacity-90"
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>+</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-bridal-mauve leading-snug">
+                    {t.invoicePhotosSubtitle}
+                  </p>
+                  {formData.invoiceImages?.length > 0 && (
+                    <div className="flex items-center gap-2 overflow-x-auto pt-1 no-scrollbar">
+                      {formData.invoiceImages.map((img) => (
+                        <div
+                          key={img.id}
+                          className="relative w-14 h-14 rounded-xl overflow-hidden border-2 border-bridal-gold/60 flex-shrink-0 group"
+                        >
+                          <img
+                            src={img.dataUrl}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(img.id, true)}
+                            className="absolute top-0.5 right-0.5 p-1 rounded-full bg-black/65 text-white hover:bg-red-600 transition"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Rich Metadata / Notes */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-bold text-bridal-charcoal mb-1.5">
@@ -449,7 +645,7 @@ export default function ItemModal({
                 <textarea
                   rows={2}
                   value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  onChange={(e) => updateField({ notes: e.target.value })}
                   placeholder={t.notesPlaceholder}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-bridal-surface border border-bridal-border focus:border-bridal-rose outline-none text-sm text-bridal-charcoal resize-none"
                 />
@@ -459,7 +655,10 @@ export default function ItemModal({
               <div className="flex items-center justify-end gap-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => {
+                    if (onFormDirtyChange) onFormDirtyChange(false);
+                    onClose();
+                  }}
                   className="px-4 py-2.5 rounded-xl border border-bridal-border bg-bridal-surface text-bridal-mauve hover:text-bridal-charcoal text-sm font-bold transition"
                 >
                   {t.cancel}

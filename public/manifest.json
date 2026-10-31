@@ -1,7 +1,8 @@
 {
-  "name": "رفيقة العروسة - لتنظيم ومتابعة الجهاز",
-  "short_name": "رفيقة العروسة",
-  "description": "التطبيق الأول لتنظيم ومتابعة جهاز العروسة والميزانية والأقساط بدون إنترنت",
+  "id": "/",
+  "name": "م-شوارنا - لتنظيم ومتابعة الجهاز",
+  "short_name": "م-شوارنا",
+  "description": "م-شوارنا - التطبيق الأول للعروسة والعريس لتنظيم ومتابعة الجهاز والميزانية والأقساط",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -10,12 +11,37 @@
   "theme_color": "#D88C9A",
   "dir": "rtl",
   "lang": "ar",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/bridal-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

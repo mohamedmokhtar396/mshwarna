@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -7,10 +7,11 @@ import {
   ShoppingBag,
   ShieldCheck,
   Shield,
-  Sparkles,
   Eye,
   ArrowRight,
-  UserPlus
+  UserPlus,
+  Wrench,
+  Users
 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, SUPER_ADMIN_EMAIL } from './firebaseConfig';
@@ -30,10 +31,19 @@ import {
   deleteItem,
   saveCategory,
   deleteCategory,
-  updateAppSettings
+  updateAppSettings,
+  appendItemImages,
+  removeItemImage,
+  saveSubcategoryMeta,
+  exportDatabasePayload,
+  decodeSharePayload
 } from './db';
 import { defaultSettings, initialCategories, initialItems } from './seedData';
-import { translations } from './i18n';
+import {
+  translations,
+  getLocalizedItem,
+  getLocalizedCategory
+} from './i18n';
 import {
   triggerCategoryCelebration,
   triggerMiniSparkle
@@ -49,6 +59,15 @@ import CategoryModal from './components/CategoryModal';
 import AuthScreen from './components/AuthScreen';
 import AdminDashboard from './components/AdminDashboard';
 import ShareShowcaseModal from './components/ShareShowcaseModal';
+import ImageLightbox from './components/ImageLightbox';
+import ShareFianceModal from './components/ShareFianceModal';
+import FianceSharedView from './components/FianceSharedView';
+import RefreshSafetyModal from './components/RefreshSafetyModal';
+import InstallAppModal, { detectMobilePlatform } from './components/InstallAppModal';
+import FinishingLedger from './components/FinishingLedger';
+import EngineerSharedView from './components/EngineerSharedView';
+import CoupleRoomView from './components/CoupleRoomView';
+import SmartBudgetModal from './components/SmartBudgetModal';
 
 export default function App() {
   const [isDbReady, setIsDbReady] = useState(false);
@@ -61,20 +80,34 @@ export default function App() {
   const [activeTargetUid, setActiveTargetUid] = useState(null);
   const [impersonatedBride, setImpersonatedBride] = useState(null);
 
-  // Public Showcase Mode (?showcase={shareId})
+  // Public Showcase Mode (?showcase={shareId} or ?engineer_ledger={shareId})
   const [showcaseId, setShowcaseId] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('showcase') || null;
   });
+  const [engineerShareId, setEngineerShareId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('engineer_ledger') || null;
+  });
+  const [engineerLedgerSharedData, setEngineerLedgerSharedData] = useState(null);
   const [showcaseData, setShowcaseData] = useState(null);
   const [showcaseLoading, setShowcaseLoading] = useState(false);
   const [showcaseError, setShowcaseError] = useState('');
 
-  // Navigation Tabs: 'dashboard' | 'categories' | 'shopping' | 'backup' | 'print' | 'admin'
+  // Navigation Tabs: 'dashboard' | 'categories' | 'shopping' | 'finishing' | 'couple' | 'backup' | 'print' | 'admin'
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [printDefaultDocType, setPrintDefaultDocType] = useState('report');
+  const [isSmartBudgetOpen, setIsSmartBudgetOpen] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState('cat-appliances');
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Navigation History Stack for Back (<) and Forward (>) buttons
+  const [historyStack, setHistoryStack] = useState([
+    { activeTab: 'dashboard', selectedCategoryId: 'cat-appliances', activeFilter: 'all' }
+  ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const isNavigatingHistoryRef = useRef(false);
 
   // Modals State
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -83,17 +116,38 @@ export default function App() {
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [hasUnsavedFormChanges, setHasUnsavedFormChanges] = useState(false);
 
-  // PWA Install Prompt
-  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isShareFianceModalOpen, setIsShareFianceModalOpen] = useState(false);
+  const [fianceSharedData, setFianceSharedData] = useState(null);
+  const [isRefreshWarningOpen, setIsRefreshWarningOpen] = useState(false);
+
+  // Lightbox State
+  const [lightboxState, setLightboxState] = useState({
+    isOpen: false,
+    images: [],
+    currentIndex: 0,
+    title: '',
+    itemId: null
+  });
+
+  // PWA Install Prompt & Guide Modal State
+  const [installPromptEvent, setInstallPromptEvent] = useState(
+    () => (typeof window !== 'undefined' && window.__deferredInstallPrompt) || null
+  );
+  const [isAppInstalled, setIsAppInstalled] = useState(
+    () => detectMobilePlatform().isStandalone
+  );
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [installModalGender, setInstallModalGender] = useState(null);
 
   const isSuperAdmin = Boolean(
     currentUser?.email &&
       currentUser.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
   );
 
-  // 1. Initialize Local Dexie & Check Showcase Mode
+  // 1. Initialize Local Dexie & Listen for PWA Install Events
   useEffect(() => {
     let mounted = true;
     initializeDatabase().then(async () => {
@@ -104,20 +158,65 @@ export default function App() {
       }
     });
 
+    if (window.__deferredInstallPrompt) {
+      setInstallPromptEvent(window.__deferredInstallPrompt);
+    }
+
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
+      window.__deferredInstallPrompt = e;
       setInstallPromptEvent(e);
     };
 
+    const handleCustomInstallAvailable = (e) => {
+      if (e.detail) {
+        setInstallPromptEvent(e.detail);
+      }
+    };
+
+    const handleAppInstalled = () => {
+      window.__deferredInstallPrompt = null;
+      setInstallPromptEvent(null);
+      setIsAppInstalled(true);
+      setIsInstallModalOpen(false);
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('pwa-install-available', handleCustomInstallAvailable);
+    window.addEventListener('appinstalled', handleAppInstalled);
     return () => {
       mounted = false;
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('pwa-install-available', handleCustomInstallAvailable);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
-  // 2. Load Public Showcase Snapshot if ?showcase={shareId} is present
+  // 2. Load Public Showcase Snapshot if ?showcase={shareId} or ?engineer_ledger={shareId} is present
   useEffect(() => {
+    if (engineerShareId) {
+      let mounted = true;
+      setShowcaseLoading(true);
+      fetchSharedShowcaseProfile(engineerShareId)
+        .then((snap) => {
+          if (!mounted) return;
+          if (snap) {
+            setEngineerLedgerSharedData(snap);
+          } else {
+            setShowcaseError('رابط كشف حساب المهندس غير موجود أو انتهت صلاحيته.');
+          }
+        })
+        .catch(() => {
+          if (mounted) setShowcaseError('تعذر تحميل كشف حساب المهندس المشترك.');
+        })
+        .finally(() => {
+          if (mounted) setShowcaseLoading(false);
+        });
+      return () => {
+        mounted = false;
+      };
+    }
+
     if (!showcaseId) {
       setReadOnlyMode(false);
       setShowcaseData(null);
@@ -150,7 +249,7 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, [showcaseId]);
+  }, [showcaseId, engineerShareId]);
 
   // 3. Listen to Firebase Authentication State
   useEffect(() => {
@@ -173,9 +272,90 @@ export default function App() {
   // 4. Real-Time Cloud Subscription to Active Target Bride's Data
   useEffect(() => {
     if (!activeTargetUid || showcaseId) return undefined;
-    const unsubCloud = subscribeToBrideCloudData(activeTargetUid);
+    const fallbackProfile =
+      impersonatedBride && impersonatedBride.uid === activeTargetUid
+        ? impersonatedBride
+        : null;
+    const unsubCloud = subscribeToBrideCloudData(
+      activeTargetUid,
+      undefined,
+      fallbackProfile
+    );
     return () => unsubCloud();
-  }, [activeTargetUid, showcaseId]);
+  }, [activeTargetUid, showcaseId, impersonatedBride]);
+
+  // Import fiancé reply payload helper
+  const handleImportFianceReply = async (replyPayload) => {
+    if (!replyPayload) return 0;
+    let count = 0;
+
+    if (replyPayload.notesMap && typeof replyPayload.notesMap === 'object') {
+      for (const [itemId, noteText] of Object.entries(replyPayload.notesMap)) {
+        if (noteText) {
+          await db.items.update(itemId, { fianceNote: noteText });
+          count++;
+        }
+      }
+    }
+
+    if (Array.isArray(replyPayload.newSuggestions)) {
+      for (const sug of replyPayload.newSuggestions) {
+        if (sug?.name) {
+          await saveItem(
+            {
+              categoryId: 'cat-appliances',
+              name: sug.name,
+              subcategory: 'مقترح الخطيب',
+              requiredQty: 1,
+              purchasedQty: 0,
+              isPriority: true,
+              isPurchased: false,
+              notes: sug.note || '',
+              fianceNote: `مقترح من الخطيب: ${sug.note || sug.name}`
+            },
+            'ar'
+          );
+          count++;
+        }
+      }
+    }
+
+    return count;
+  };
+
+  // Check URL Hash for #share=... or #fiance_reply=...
+  useEffect(() => {
+    const checkHash = async () => {
+      const hash = window.location.hash || '';
+      if (hash.startsWith('#share=')) {
+        const encoded = hash.replace('#share=', '');
+        const decoded = decodeSharePayload(encoded);
+        if (decoded && Array.isArray(decoded.items)) {
+          setFianceSharedData(decoded);
+        }
+      } else if (hash.startsWith('#engineer_ledger=')) {
+        const encoded = hash.replace('#engineer_ledger=', '');
+        const decoded = decodeSharePayload(encoded);
+        if (decoded) {
+          setEngineerLedgerSharedData(decoded);
+        }
+      } else if (hash.startsWith('#fiance_reply=')) {
+        const encoded = hash.replace('#fiance_reply=', '');
+        const decoded = decodeSharePayload(encoded);
+        if (decoded) {
+          const importedCount = await handleImportFianceReply(decoded);
+          window.history.replaceState(null, '', window.location.pathname);
+          if (importedCount > 0) {
+            triggerCategoryCelebration();
+          }
+        }
+      }
+    };
+
+    checkHash();
+    window.addEventListener('hashchange', checkHash);
+    return () => window.removeEventListener('hashchange', checkHash);
+  }, []);
 
   // Reactive Live Queries from IndexedDB via Dexie
   const localCategories = useLiveQuery(
@@ -197,15 +377,33 @@ export default function App() {
     ? showcaseData?.categories || initialCategories
     : localCategories;
   const items = isReadOnly ? showcaseData?.items || initialItems : localItems;
-  const settings = isReadOnly
+  const baseSettings = isReadOnly
     ? showcaseData?.settings || defaultSettings
     : localSettings || defaultSettings;
 
+  // Ensure that when Super Admin is impersonating a user, their name & gender are reflected immediately even on the first render tick
+  const settings =
+    impersonatedBride && impersonatedBride.uid === activeTargetUid
+      ? {
+          ...baseSettings,
+          brideName:
+            impersonatedBride.brideName ||
+            baseSettings?.brideName ||
+            'أحلى عروسة',
+          gender:
+            impersonatedBride.gender ||
+            baseSettings?.gender ||
+            'female'
+        }
+      : baseSettings;
+
   const lang = settings?.language || 'ar';
   const theme = settings?.theme || 'light';
+  const gender = settings?.gender || 'female';
   const t = translations[lang] || translations.ar;
 
-  // Apply RTL/LTR direction and Dark/Light theme class to <html>
+  // Apply RTL/LTR direction, Dark/Light theme class, and Groom ('theme-male') class to <html>
+  // Women's theme ('female') never adds 'theme-male', keeping women's colors 100% untouched.
   useEffect(() => {
     const root = document.documentElement;
     root.dir = lang === 'ar' ? 'rtl' : 'ltr';
@@ -215,7 +413,108 @@ export default function App() {
     } else {
       root.classList.remove('dark');
     }
-  }, [lang, theme]);
+    if (gender === 'male') {
+      root.classList.add('theme-male');
+    } else {
+      root.classList.remove('theme-male');
+    }
+    if (typeof window !== 'undefined' && window.syncGenderAppIcons) {
+      window.syncGenderAppIcons(gender === 'male' ? 'male' : 'female');
+    }
+  }, [lang, theme, gender]);
+
+  // Keep selectedCategoryId valid when categories switch between Bride and Groom templates
+  useEffect(() => {
+    if (
+      categories &&
+      categories.length > 0 &&
+      !categories.some((c) => c.id === selectedCategoryId)
+    ) {
+      setSelectedCategoryId(categories[0].id);
+    }
+  }, [categories, selectedCategoryId]);
+
+  // Track navigation history whenever activeTab, selectedCategoryId, or activeFilter changes
+  useEffect(() => {
+    if (isNavigatingHistoryRef.current) {
+      isNavigatingHistoryRef.current = false;
+      return;
+    }
+    setHistoryStack((prev) => {
+      const currentTop = prev[historyIndex];
+      if (
+        currentTop &&
+        currentTop.activeTab === activeTab &&
+        currentTop.selectedCategoryId === selectedCategoryId &&
+        currentTop.activeFilter === activeFilter
+      ) {
+        return prev;
+      }
+      const nextStack = prev.slice(0, historyIndex + 1);
+      nextStack.push({ activeTab, selectedCategoryId, activeFilter });
+      setHistoryIndex(nextStack.length - 1);
+      return nextStack;
+    });
+  }, [activeTab, selectedCategoryId, activeFilter]);
+
+  const canGoBack = historyIndex > 0;
+  const canGoForward = historyIndex < historyStack.length - 1;
+
+  const handleGoBack = () => {
+    if (!canGoBack) return;
+    const prevStep = historyStack[historyIndex - 1];
+    if (prevStep) {
+      isNavigatingHistoryRef.current = true;
+      setHistoryIndex(historyIndex - 1);
+      setActiveTab(prevStep.activeTab);
+      setSelectedCategoryId(prevStep.selectedCategoryId);
+      setActiveFilter(prevStep.activeFilter);
+    }
+  };
+
+  const handleGoForward = () => {
+    if (!canGoForward) return;
+    const nextStep = historyStack[historyIndex + 1];
+    if (nextStep) {
+      isNavigatingHistoryRef.current = true;
+      setHistoryIndex(historyIndex + 1);
+      setActiveTab(nextStep.activeTab);
+      setSelectedCategoryId(nextStep.selectedCategoryId);
+      setActiveFilter(nextStep.activeFilter);
+    }
+  };
+
+  const handleSafeRefresh = () => {
+    if (hasUnsavedFormChanges || settings?.hasUnbackedChanges || !navigator.onLine) {
+      setIsRefreshWarningOpen(true);
+    } else {
+      window.location.reload();
+    }
+  };
+
+  const handleDownloadBackupAndRefresh = async () => {
+    try {
+      const payload = await exportDatabasePayload();
+      const jsonString = JSON.stringify(payload, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const now = new Date();
+      const fileName = `bridal_jihaz_backup_${now.getFullYear()}_${String(
+        now.getMonth() + 1
+      ).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}.json`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.warn(err);
+    }
+    setIsRefreshWarningOpen(false);
+    setTimeout(() => window.location.reload(), 400);
+  };
 
   const handleToggleLang = async () => {
     const nextLang = lang === 'ar' ? 'en' : 'ar';
@@ -283,10 +582,11 @@ export default function App() {
     setActiveTab('print');
   };
 
-  const handleExitImpersonation = () => {
+  const handleExitImpersonation = async () => {
     setImpersonatedBride(null);
     if (currentUser?.uid) {
       setActiveTargetUid(currentUser.uid);
+      await initializeUserCloudProfile(currentUser);
     }
     setActiveTab('admin');
   };
@@ -335,8 +635,40 @@ export default function App() {
 
   const handleDeleteItem = async (item) => {
     if (isReadOnly) return;
-    if (window.confirm(t.confirmDeleteItem(item.name))) {
+    const loc = getLocalizedItem(item, lang);
+    if (window.confirm(t.confirmDeleteItem(loc.displayName || item.name))) {
       await deleteItem(item.id);
+    }
+  };
+
+  const handleQuickUploadItemPhotos = async (itemId, newImages, isInvoice = false) => {
+    if (isReadOnly) return;
+    await appendItemImages(itemId, newImages, isInvoice);
+    triggerMiniSparkle();
+  };
+
+  const handleOpenLightbox = (images, currentIndex = 0, title = '', itemId = null) => {
+    setLightboxState({
+      isOpen: true,
+      images,
+      currentIndex,
+      title,
+      itemId
+    });
+  };
+
+  const handleDeleteLightboxImage = async (imageId) => {
+    if (!lightboxState.itemId || isReadOnly) return;
+    await removeItemImage(lightboxState.itemId, imageId);
+    const remaining = lightboxState.images.filter((i) => i.id !== imageId);
+    if (remaining.length === 0) {
+      setLightboxState((prev) => ({ ...prev, isOpen: false }));
+    } else {
+      setLightboxState((prev) => ({
+        ...prev,
+        images: remaining,
+        currentIndex: Math.min(prev.currentIndex, remaining.length - 1)
+      }));
     }
   };
 
@@ -350,7 +682,8 @@ export default function App() {
 
   const handleDeleteCategory = async (cat) => {
     if (isReadOnly) return;
-    if (window.confirm(t.confirmDeleteCategory(cat.name))) {
+    const loc = getLocalizedCategory(cat, lang);
+    if (window.confirm(t.confirmDeleteCategory(loc.displayName || cat.name))) {
       await deleteCategory(cat.id);
       if (categories.length > 1) {
         const remaining = categories.filter((c) => c.id !== cat.id);
@@ -359,7 +692,7 @@ export default function App() {
     }
   };
 
-  // Search bar handler: if typing from dashboard or backup, switch to shopping/search view
+  // Search bar handler
   const handleSearchChange = (q) => {
     setSearchQuery(q);
     if (q.trim() && (activeTab === 'dashboard' || activeTab === 'backup')) {
@@ -367,22 +700,59 @@ export default function App() {
     }
   };
 
-  const handleTriggerInstall = async () => {
-    if (!installPromptEvent) return;
-    installPromptEvent.prompt();
-    await installPromptEvent.userChoice;
-    setInstallPromptEvent(null);
+  // 1-Click Native Install if supported, otherwise open the step-by-step iPhone/Android Install Guide Modal
+  const handleTriggerNativeInstall = async () => {
+    const promptEvent = installPromptEvent || window.__deferredInstallPrompt;
+    if (!promptEvent) return false;
+    try {
+      promptEvent.prompt();
+      const choiceResult = await promptEvent.userChoice;
+      if (choiceResult?.outcome === 'accepted') {
+        window.__deferredInstallPrompt = null;
+        setInstallPromptEvent(null);
+        setIsAppInstalled(true);
+      }
+      return true;
+    } catch (err) {
+      console.warn('Native install prompt error:', err);
+      return false;
+    }
   };
 
-  // Loading Screen
+  const handleInstallButtonClick = async (preferredGender) => {
+    const effectiveGender =
+      preferredGender === 'male' || preferredGender === 'female'
+        ? preferredGender
+        : gender;
+    setInstallModalGender(effectiveGender);
+    if (typeof window !== 'undefined' && window.syncGenderAppIcons) {
+      window.syncGenderAppIcons(effectiveGender);
+    }
+    const promptEvent = installPromptEvent || window.__deferredInstallPrompt;
+    if (promptEvent) {
+      const triggered = await handleTriggerNativeInstall();
+      if (triggered) return;
+    }
+    // Fallback: Open interactive step-by-step instructions modal for iPhone & Android
+    setIsInstallModalOpen(true);
+  };
+
+  // Loading Screen with Bride / Groom Portrait Icon
   if (!isDbReady || isAuthChecking || (showcaseId && showcaseLoading)) {
+    const savedGender =
+      (typeof window !== 'undefined' && localStorage.getItem('meshwarna_gender')) ||
+      gender;
     return (
       <div className="min-h-screen bg-bridal-bg flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 rounded-3xl bg-bridal-roseLight text-bridal-roseDark flex items-center justify-center animate-pulse mb-4 shadow-bridal">
-          <Sparkles className="w-8 h-8" />
+        <div className="w-20 h-20 rounded-3xl overflow-hidden border-2 border-bridal-gold animate-pulse mb-4 shadow-bridal-lg bg-bridal-surface">
+          <img
+            src={savedGender === 'male' ? '/groom-icon-192.png' : '/icon-192.png'}
+            alt="م-شوارنا"
+            className="w-full h-full object-cover"
+          />
         </div>
         <h2 className="text-xl font-extrabold text-bridal-charcoal">
-          رفيقة العروسة 🌸
+          م-شوارنا 🌸💍
         </h2>
         <p className="text-xs text-bridal-mauve mt-1">
           {showcaseId
@@ -393,6 +763,39 @@ export default function App() {
     );
   }
 
+  // Engineer Shared Ledger View (Requires ZERO Registration!)
+  if (engineerLedgerSharedData) {
+    return (
+      <EngineerSharedView
+        ledgerData={engineerLedgerSharedData}
+        onExitPreview={() => {
+          setEngineerLedgerSharedData(null);
+          setEngineerShareId(null);
+          const url = new URL(window.location.href);
+          url.searchParams.delete('engineer_ledger');
+          window.history.replaceState(null, '', url.pathname);
+        }}
+      />
+    );
+  }
+
+  // Fiancé Shared Guest View (Requires ZERO Registration!)
+  if (fianceSharedData) {
+    return (
+      <FianceSharedView
+        shareData={fianceSharedData}
+        lang={lang}
+        onExitPreview={() => {
+          setFianceSharedData(null);
+          if (window.location.hash.startsWith('#share=')) {
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+        }}
+        onSaveLocalSuggestions={handleImportFianceReply}
+      />
+    );
+  }
+
   // Showcase Not Found Error Screen
   if (showcaseId && showcaseError) {
     return (
@@ -400,8 +803,12 @@ export default function App() {
         dir="rtl"
         className="min-h-screen bg-bridal-bg flex flex-col items-center justify-center p-6 text-center space-y-4"
       >
-        <div className="w-16 h-16 rounded-3xl bg-red-500/10 text-red-500 flex items-center justify-center">
-          <Sparkles className="w-8 h-8" />
+        <div className="w-20 h-20 rounded-3xl overflow-hidden border-2 border-bridal-gold shadow-bridal mx-auto">
+          <img
+            src="/icon-192.png"
+            alt="رفيقة العروسة"
+            className="w-full h-full object-cover"
+          />
         </div>
         <h2 className="text-xl font-extrabold text-bridal-charcoal">
           {showcaseError}
@@ -420,13 +827,26 @@ export default function App() {
   // Authentication Screen (if not logged in, not in Guest mode, and not viewing a Showcase link)
   if (!showcaseId && !currentUser && !isGuestMode) {
     return (
-      <AuthScreen
-        onAuthSuccess={(user) => {
-          setCurrentUser(user);
-          setActiveTargetUid(user.uid);
-        }}
-        onContinueAsGuest={() => setIsGuestMode(true)}
-      />
+      <>
+        <AuthScreen
+          onAuthSuccess={(user) => {
+            setCurrentUser(user);
+            setActiveTargetUid(user.uid);
+          }}
+          onContinueAsGuest={() => setIsGuestMode(true)}
+          onTriggerInstall={handleInstallButtonClick}
+          isAppInstalled={isAppInstalled}
+        />
+        <InstallAppModal
+          isOpen={isInstallModalOpen}
+          onClose={() => setIsInstallModalOpen(false)}
+          installPromptEvent={installPromptEvent}
+          onTriggerNativeInstall={handleTriggerNativeInstall}
+          lang={lang}
+          gender={installModalGender || gender}
+          onChangeGenderIcon={(nextG) => setInstallModalGender(nextG)}
+        />
+      </>
     );
   }
 
@@ -438,6 +858,7 @@ export default function App() {
         categories={categories}
         items={items}
         settings={settings}
+        defaultDocType={printDefaultDocType}
         onClose={() => setActiveTab('dashboard')}
       />
     );
@@ -466,6 +887,16 @@ export default function App() {
       badge: priorityRemainingCount > 0 ? priorityRemainingCount : null
     },
     {
+      id: 'finishing',
+      label: 'عهدة التشطيب 👷‍♂️',
+      icon: Wrench
+    },
+    {
+      id: 'couple',
+      label: 'شقتنا المشتركة 🏡',
+      icon: Users
+    },
+    {
       id: 'backup',
       label: t.navBackup,
       icon: ShieldCheck
@@ -482,7 +913,7 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-bridal-bg flex flex-col pb-20 md:pb-6">
+    <div className="min-h-screen bg-bridal-bg flex flex-col pb-20 md:pb-6 transition-colors">
       {/* 1. Public Read-Only Showcase Banner (?showcase={shareId}) */}
       {isReadOnly && showcaseData && (
         <div
@@ -547,8 +978,15 @@ export default function App() {
       <Header
         lang={lang}
         theme={theme}
+        gender={gender}
         onToggleLang={handleToggleLang}
         onToggleTheme={handleToggleTheme}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        onGoBack={handleGoBack}
+        onGoForward={handleGoForward}
+        onSafeRefresh={handleSafeRefresh}
+        hasUnbackedChanges={Boolean(settings?.hasUnbackedChanges || hasUnsavedFormChanges)}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
         onOpenAddItem={() => {
@@ -557,19 +995,20 @@ export default function App() {
           setIsItemModalOpen(true);
         }}
         onOpenPrintReport={() => setActiveTab('print')}
-        installPromptEvent={installPromptEvent}
-        onTriggerInstall={handleTriggerInstall}
+        onOpenShareFiance={!isReadOnly ? () => setIsShareFianceModalOpen(true) : undefined}
+        onOpenShareShowcase={!isReadOnly ? () => setIsShareModalOpen(true) : undefined}
+        isAppInstalled={isAppInstalled}
+        onTriggerInstall={handleInstallButtonClick}
         currentUser={currentUser}
         isSuperAdmin={isSuperAdmin && !isReadOnly}
         isReadOnly={isReadOnly}
         onOpenAdminDashboard={() => setActiveTab('admin')}
-        onOpenShareShowcase={() => setIsShareModalOpen(true)}
         onSignOut={handleSignOut}
         onOpenAuthScreen={() => setIsGuestMode(false)}
       />
 
       {/* Desktop Navigation Tabs Bar */}
-      <div className="hidden md:block bg-bridal-surface/80 border-b border-bridal-border no-print">
+      <div className="hidden md:block bg-bridal-surface/80 border-b border-bridal-border no-print transition-colors">
         <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-center justify-between">
           <nav className="flex items-center gap-2">
             {navItems.map((tab) => {
@@ -648,9 +1087,25 @@ export default function App() {
                   setActiveFilter(filterId || 'priority');
                   setActiveTab('shopping');
                 }}
+                onOpenShareFiance={
+                  !isReadOnly ? () => setIsShareFianceModalOpen(true) : undefined
+                }
                 onOpenShareShowcase={
                   !isReadOnly ? () => setIsShareModalOpen(true) : undefined
                 }
+                onOpenFinishingLedger={() => setActiveTab('finishing')}
+                onOpenCoupleRoom={() => setActiveTab('couple')}
+                onOpenPrintQayma={() => {
+                  setPrintDefaultDocType('qayma');
+                  setActiveTab('print');
+                }}
+                onOpenSmartBudget={() => setIsSmartBudgetOpen(true)}
+                onEditItem={(item) => {
+                  setEditingItem(item);
+                  setIsItemModalOpen(true);
+                }}
+                onTriggerInstall={handleInstallButtonClick}
+                isAppInstalled={isAppInstalled}
                 isReadOnly={isReadOnly}
                 showPrices={showPrices}
               />
@@ -696,6 +1151,10 @@ export default function App() {
                   setEditingCategory(null);
                   setIsCategoryModalOpen(true);
                 }}
+                onQuickUploadItemPhotos={handleQuickUploadItemPhotos}
+                onSaveCategoryDirect={handleSaveCategory}
+                onSaveSubcategoryMeta={saveSubcategoryMeta}
+                onOpenLightbox={handleOpenLightbox}
                 isReadOnly={isReadOnly}
                 showPrices={showPrices}
               />
@@ -730,8 +1189,52 @@ export default function App() {
                   setModalDefaultCategoryId(catId || selectedCategoryId);
                   setIsItemModalOpen(true);
                 }}
+                onQuickUploadItemPhotos={handleQuickUploadItemPhotos}
+                onOpenLightbox={handleOpenLightbox}
                 isReadOnly={isReadOnly}
                 showPrices={showPrices}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'finishing' && (
+            <motion.div
+              key="finishing"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <FinishingLedger
+                lang={lang}
+                settings={settings}
+                onUpdateSettings={updateAppSettings}
+                onOpenLightbox={handleOpenLightbox}
+                onPreviewEngineerView={(ledgerPayload) =>
+                  setEngineerLedgerSharedData(ledgerPayload)
+                }
+                isReadOnly={isReadOnly}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'couple' && (
+            <motion.div
+              key="couple"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <CoupleRoomView
+                settings={settings}
+                items={items}
+                onUpdateSettings={updateAppSettings}
+                onOpenPrintQayma={() => {
+                  setPrintDefaultDocType('qayma');
+                  setActiveTab('print');
+                }}
+                isReadOnly={isReadOnly}
               />
             </motion.div>
           )}
@@ -779,12 +1282,8 @@ export default function App() {
       </main>
 
       {/* Sticky Bottom Navigation Bar for Mobile */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-bridal-surface/95 backdrop-blur-md border-t border-bridal-border px-2 py-1.5 shadow-bridal-lg no-print">
-        <div
-          className={`grid ${
-            navItems.length === 5 ? 'grid-cols-5' : 'grid-cols-4'
-          } gap-1 max-w-md mx-auto`}
-        >
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-bridal-surface/95 backdrop-blur-md border-t border-bridal-border px-1.5 py-1.5 shadow-bridal-lg no-print transition-colors">
+        <div className="flex items-center justify-between gap-1 overflow-x-auto no-scrollbar max-w-lg mx-auto">
           {navItems.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -793,7 +1292,7 @@ export default function App() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all ${
+                className={`relative flex-1 min-w-[58px] flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all ${
                   isActive
                     ? 'bg-bridal-roseLight text-bridal-roseDark font-extrabold'
                     : 'text-bridal-mauve font-medium hover:text-bridal-charcoal'
@@ -817,24 +1316,26 @@ export default function App() {
       {/* Add / Edit Item Modal */}
       {!isReadOnly && (
         <ItemModal
-          lang={lang}
           isOpen={isItemModalOpen}
           onClose={() => setIsItemModalOpen(false)}
           onSave={handleSaveItem}
           initialItem={editingItem}
           categories={categories}
           defaultCategoryId={modalDefaultCategoryId}
+          lang={lang}
+          onFormDirtyChange={setHasUnsavedFormChanges}
         />
       )}
 
       {/* Add / Edit Category Modal */}
       {!isReadOnly && (
         <CategoryModal
-          lang={lang}
           isOpen={isCategoryModalOpen}
           onClose={() => setIsCategoryModalOpen(false)}
           onSave={handleSaveCategory}
           initialCategory={editingCategory}
+          lang={lang}
+          onFormDirtyChange={setHasUnsavedFormChanges}
         />
       )}
 
@@ -848,6 +1349,62 @@ export default function App() {
           currentUser={currentUser}
         />
       )}
+
+      {/* Share with Fiancé Modal */}
+      {!isReadOnly && (
+        <ShareFianceModal
+          isOpen={isShareFianceModalOpen}
+          onClose={() => setIsShareFianceModalOpen(false)}
+          lang={lang}
+          categories={categories}
+          items={items}
+          settings={settings}
+          onPreviewFianceMode={(payload) => {
+            setIsShareFianceModalOpen(false);
+            setFianceSharedData(payload);
+          }}
+          onImportFianceReply={handleImportFianceReply}
+        />
+      )}
+
+      {/* Fullscreen Image & Invoice Lightbox */}
+      <ImageLightbox
+        isOpen={lightboxState.isOpen}
+        images={lightboxState.images}
+        currentIndex={lightboxState.currentIndex}
+        title={lightboxState.title}
+        onClose={() => setLightboxState((prev) => ({ ...prev, isOpen: false }))}
+        onDeleteImage={lightboxState.itemId ? handleDeleteLightboxImage : undefined}
+      />
+
+      {/* Safe Refresh Warning Modal */}
+      <RefreshSafetyModal
+        isOpen={isRefreshWarningOpen}
+        lang={lang}
+        hasUnsavedForm={hasUnsavedFormChanges}
+        onClose={() => setIsRefreshWarningOpen(false)}
+        onDownloadBackupAndRefresh={handleDownloadBackupAndRefresh}
+        onRefreshAnyway={() => window.location.reload()}
+      />
+
+      {/* Mobile App Download / Install Steps Modal (iOS & Android) */}
+      <InstallAppModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        installPromptEvent={installPromptEvent}
+        onTriggerNativeInstall={handleTriggerNativeInstall}
+        lang={lang}
+        gender={installModalGender || gender}
+        onChangeGenderIcon={(nextG) => setInstallModalGender(nextG)}
+      />
+
+      {/* Smart Budget Allocation Calculator Modal */}
+      <SmartBudgetModal
+        isOpen={isSmartBudgetOpen}
+        onClose={() => setIsSmartBudgetOpen(false)}
+        settings={settings}
+        onApplyBudget={(newTotal) => updateAppSettings({ totalBudget: newTotal })}
+      />
     </div>
   );
 }

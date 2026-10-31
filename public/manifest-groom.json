@@ -1,0 +1,47 @@
+{
+  "id": "/?role=groom",
+  "name": "م-شوارنا - رفيق العريس لتنظيم الجهاز وتأسيس الشقة",
+  "short_name": "م-شوارنا",
+  "description": "م-شوارنا - رفيق العريس لتنظيم الجهاز وتأسيس الشقة والميزانية والأقساط بدون إنترنت",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F8FAFC",
+  "theme_color": "#2B4C7E",
+  "dir": "rtl",
+  "lang": "ar",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/groom-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/groom-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/groom-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/groom-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/groom-apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

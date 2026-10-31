@@ -20,6 +20,7 @@
   --bridal-charcoal: #3D3134;
   --bridal-mauve: #7D6B70;
 
+  /* RGB channels for Tailwind opacity modifiers */
   --bridal-bg-rgb: 255 253 249;
   --bridal-cream-rgb: 253 248 245;
   --bridal-surface-rgb: 255 255 255;
@@ -37,156 +38,130 @@
   --bridal-charcoal-rgb: 61 49 52;
   --bridal-mauve-rgb: 125 107 112;
 
-  --bridal-shadow: 0 4px 20px -2px rgba(216, 140, 154, 0.12), 0 2px 6px -1px rgba(61, 49, 52, 0.04);
-  --bridal-shadow-lg: 0 12px 32px -4px rgba(216, 140, 154, 0.18), 0 4px 12px -2px rgba(61, 49, 52, 0.06);
+  --bridal-shadow: 0 4px 20px -2px rgba(216, 140, 154, 0.10), 0 2px 6px -1px rgba(61, 49, 52, 0.04);
+  --bridal-shadow-lg: 0 12px 32px -4px rgba(216, 140, 154, 0.16), 0 4px 12px -2px rgba(61, 49, 52, 0.06);
 }
 
 html.dark {
-  color-scheme: dark;
-
   /* Girly / Feminine Velvet Rose & Plum Dark Theme */
-  --bridal-bg: #160E14;
+  --bridal-bg: #160F14;
   --bridal-cream: #21151E;
-  --bridal-surface: #2A1B26;
-  --bridal-border: #4B2E43;
+  --bridal-surface: #281A25;
+  --bridal-border: #432B3D;
   --bridal-rose: #F08CAE;
   --bridal-blush: #F7A8C4;
-  --bridal-rose-light: #3E2236;
-  --bridal-rose-dark: #FFB8CE;
+  --bridal-rose-light: #3A2032;
+  --bridal-rose-dark: #FFADC6;
   --bridal-gold: #F4C95D;
   --bridal-amber: #F7A072;
-  --bridal-gold-light: #3A2C1D;
+  --bridal-gold-light: #382B1C;
   --bridal-sage: #7BC99C;
-  --bridal-sage-light: #1D352B;
+  --bridal-sage-light: #1D3329;
   --bridal-sage-dark: #9EE6BC;
-  --bridal-charcoal: #FFF0F6;
-  --bridal-mauve: #D8B4C6;
+  --bridal-charcoal: #FDF2F6;
+  --bridal-mauve: #D4B0C0;
 
-  --bridal-bg-rgb: 22 14 20;
+  /* RGB channels for Girly Dark Theme */
+  --bridal-bg-rgb: 22 15 20;
   --bridal-cream-rgb: 33 21 30;
-  --bridal-surface-rgb: 42 27 38;
-  --bridal-border-rgb: 75 46 67;
+  --bridal-surface-rgb: 40 26 37;
+  --bridal-border-rgb: 67 43 61;
   --bridal-rose-rgb: 240 140 174;
   --bridal-blush-rgb: 247 168 196;
-  --bridal-rose-light-rgb: 62 34 54;
-  --bridal-rose-dark-rgb: 255 184 206;
+  --bridal-rose-light-rgb: 58 32 50;
+  --bridal-rose-dark-rgb: 255 173 198;
   --bridal-gold-rgb: 244 201 93;
   --bridal-amber-rgb: 247 160 114;
-  --bridal-gold-light-rgb: 58 44 29;
+  --bridal-gold-light-rgb: 56 43 28;
   --bridal-sage-rgb: 123 201 156;
-  --bridal-sage-light-rgb: 29 53 43;
+  --bridal-sage-light-rgb: 29 51 41;
   --bridal-sage-dark-rgb: 158 230 188;
-  --bridal-charcoal-rgb: 255 240 246;
-  --bridal-mauve-rgb: 216 180 198;
+  --bridal-charcoal-rgb: 253 242 246;
+  --bridal-mauve-rgb: 212 176 192;
 
-  --bridal-shadow: 0 8px 28px -2px rgba(0, 0, 0, 0.55), 0 2px 10px -1px rgba(240, 140, 174, 0.14);
-  --bridal-shadow-lg: 0 16px 40px -4px rgba(0, 0, 0, 0.7), 0 4px 18px -2px rgba(240, 140, 174, 0.22);
+  --bridal-shadow: 0 8px 28px -2px rgba(0, 0, 0, 0.55), 0 2px 8px -1px rgba(240, 140, 174, 0.12);
+  --bridal-shadow-lg: 0 16px 40px -4px rgba(0, 0, 0, 0.7), 0 4px 14px -2px rgba(240, 140, 174, 0.18);
+  color-scheme: dark;
 }
 
-/* Explicit dark mode overrides to guarantee full-site coverage even without PostCSS config reload */
-html.dark,
-html.dark body {
-  background-color: #160E14 !important;
-  color: #FFF0F6 !important;
+/* Groom / Men's Royal Navy, Slate & Warm Gold Theme (Applied ONLY when gender === 'male') */
+html.theme-male {
+  --bridal-bg: #F4F7FB;
+  --bridal-cream: #EBF1F8;
+  --bridal-surface: #FFFFFF;
+  --bridal-border: #D8E3F0;
+  --bridal-rose: #1E40AF;
+  --bridal-blush: #2563EB;
+  --bridal-rose-light: #DBEAFE;
+  --bridal-rose-dark: #1E3A8A;
+  --bridal-gold: #D97706;
+  --bridal-amber: #EA580C;
+  --bridal-gold-light: #FEF3C7;
+  --bridal-sage: #059669;
+  --bridal-sage-light: #D1FAE5;
+  --bridal-sage-dark: #065F46;
+  --bridal-charcoal: #0F172A;
+  --bridal-mauve: #475569;
+
+  --bridal-bg-rgb: 244 247 251;
+  --bridal-cream-rgb: 235 241 248;
+  --bridal-surface-rgb: 255 255 255;
+  --bridal-border-rgb: 216 227 240;
+  --bridal-rose-rgb: 30 64 175;
+  --bridal-blush-rgb: 37 99 235;
+  --bridal-rose-light-rgb: 219 234 254;
+  --bridal-rose-dark-rgb: 30 58 138;
+  --bridal-gold-rgb: 217 119 6;
+  --bridal-amber-rgb: 234 88 12;
+  --bridal-gold-light-rgb: 254 243 199;
+  --bridal-sage-rgb: 5 150 105;
+  --bridal-sage-light-rgb: 209 250 229;
+  --bridal-sage-dark-rgb: 6 95 70;
+  --bridal-charcoal-rgb: 15 23 42;
+  --bridal-mauve-rgb: 71 85 105;
+
+  --bridal-shadow: 0 4px 20px -2px rgba(30, 64, 175, 0.10), 0 2px 6px -1px rgba(15, 23, 42, 0.05);
+  --bridal-shadow-lg: 0 12px 32px -4px rgba(30, 64, 175, 0.16), 0 4px 12px -2px rgba(15, 23, 42, 0.08);
 }
 
-html.dark .bg-bridal-bg,
-html.dark .bg-bridal-bg\/95 {
-  background-color: rgba(22, 14, 20, 0.96) !important;
-}
+html.theme-male.dark {
+  --bridal-bg: #0B1120;
+  --bridal-cream: #111C30;
+  --bridal-surface: #17233B;
+  --bridal-border: #283A5E;
+  --bridal-rose: #3B82F6;
+  --bridal-blush: #60A5FA;
+  --bridal-rose-light: #1E325C;
+  --bridal-rose-dark: #93C5FD;
+  --bridal-gold: #FBBF24;
+  --bridal-amber: #FB923C;
+  --bridal-gold-light: #362B12;
+  --bridal-sage: #34D399;
+  --bridal-sage-light: #0F2E28;
+  --bridal-sage-dark: #6EE7B7;
+  --bridal-charcoal: #F8FAFC;
+  --bridal-mauve: #94A3B8;
 
-html.dark .bg-bridal-surface,
-html.dark .bg-white {
-  background-color: #2A1B26 !important;
-}
+  --bridal-bg-rgb: 11 17 32;
+  --bridal-cream-rgb: 17 28 48;
+  --bridal-surface-rgb: 23 35 59;
+  --bridal-border-rgb: 40 58 94;
+  --bridal-rose-rgb: 59 130 246;
+  --bridal-blush-rgb: 96 165 250;
+  --bridal-rose-light-rgb: 30 50 92;
+  --bridal-rose-dark-rgb: 147 197 253;
+  --bridal-gold-rgb: 251 191 36;
+  --bridal-amber-rgb: 251 146 60;
+  --bridal-gold-light-rgb: 54 43 18;
+  --bridal-sage-rgb: 52 211 153;
+  --bridal-sage-light-rgb: 15 46 40;
+  --bridal-sage-dark-rgb: 110 231 183;
+  --bridal-charcoal-rgb: 248 250 252;
+  --bridal-mauve-rgb: 148 163 184;
 
-html.dark .bg-bridal-surface\/80,
-html.dark .bg-bridal-surface\/95,
-html.dark .bg-bridal-surface\/70 {
-  background-color: rgba(42, 27, 38, 0.92) !important;
-}
-
-html.dark .bg-bridal-cream,
-html.dark .bg-bridal-cream\/80,
-html.dark .bg-bridal-cream\/70,
-html.dark .bg-bridal-cream\/50 {
-  background-color: #21151E !important;
-}
-
-html.dark .bg-bridal-roseLight,
-html.dark .bg-bridal-roseLight\/70,
-html.dark .bg-bridal-roseLight\/60,
-html.dark .bg-bridal-roseLight\/40 {
-  background-color: #3E2236 !important;
-}
-
-html.dark .bg-bridal-goldLight {
-  background-color: #3A2C1D !important;
-}
-
-html.dark .bg-bridal-sageLight,
-html.dark .bg-bridal-sageLight\/60,
-html.dark .bg-bridal-sageLight\/55,
-html.dark .bg-bridal-sageLight\/50 {
-  background-color: #1D352B !important;
-}
-
-html.dark .text-bridal-charcoal {
-  color: #FFF0F6 !important;
-}
-
-html.dark .text-bridal-mauve {
-  color: #D8B4C6 !important;
-}
-
-html.dark .text-bridal-roseDark {
-  color: #FFB8CE !important;
-}
-
-html.dark .text-bridal-sageDark {
-  color: #9EE6BC !important;
-}
-
-html.dark .text-bridal-gold {
-  color: #F4C95D !important;
-}
-
-html.dark .border-bridal-border,
-html.dark .border-bridal-border\/70,
-html.dark .border-bridal-border\/80,
-html.dark .border-bridal-border\/60 {
-  border-color: #4B2E43 !important;
-}
-
-/* Dark mode gradients for Hero & Banners */
-html.dark .from-bridal-roseLight\/60,
-html.dark .from-bridal-roseLight,
-html.dark .from-\[\#FFF5F7\] {
-  --tw-gradient-from: #381D31 var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(56 29 49 / 0) var(--tw-gradient-to-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
-}
-
-html.dark .via-bridal-surface,
-html.dark .via-white {
-  --tw-gradient-to: rgb(42 27 38 / 0) var(--tw-gradient-to-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), #2A1B26 var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
-}
-
-html.dark .to-bridal-cream,
-html.dark .to-\[\#FDF8F5\],
-html.dark .to-bridal-roseLight\/70 {
-  --tw-gradient-to: #21151E var(--tw-gradient-to-position) !important;
-}
-
-html.dark .from-bridal-goldLight\/70 {
-  --tw-gradient-from: #3A2C1D var(--tw-gradient-from-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), #2A1B26 var(--tw-gradient-via-position), #381D31 var(--tw-gradient-to-position) !important;
-}
-
-html.dark .from-bridal-sageLight\/70 {
-  --tw-gradient-from: #1D352B var(--tw-gradient-from-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), #2A1B26 var(--tw-gradient-via-position), #21151E var(--tw-gradient-to-position) !important;
+  --bridal-shadow: 0 6px 24px -2px rgba(0, 0, 0, 0.45), 0 2px 8px -1px rgba(59, 130, 246, 0.10);
+  --bridal-shadow-lg: 0 14px 36px -4px rgba(0, 0, 0, 0.6), 0 4px 14px -2px rgba(59, 130, 246, 0.16);
+  color-scheme: dark;
 }
 
 @layer base {
@@ -206,6 +181,268 @@ html.dark .from-bridal-sageLight\/70 {
     color: var(--bridal-charcoal);
     transition: background-color 0.25s ease, color 0.25s ease;
   }
+}
+
+/* ==========================================================================
+   Comprehensive Dark Mode Overrides (Covers all surfaces, opacity variants & gradients)
+   ========================================================================== */
+html.dark,
+html.dark body,
+html.dark #root {
+  background-color: var(--bridal-bg) !important;
+  color: var(--bridal-charcoal) !important;
+}
+
+/* Backgrounds & Opacity Variants */
+html.dark .bg-bridal-bg {
+  background-color: var(--bridal-bg) !important;
+}
+html.dark .bg-bridal-bg\/60 {
+  background-color: rgb(var(--bridal-bg-rgb) / 0.6) !important;
+}
+html.dark .bg-bridal-bg\/70 {
+  background-color: rgb(var(--bridal-bg-rgb) / 0.7) !important;
+}
+html.dark .bg-bridal-bg\/95 {
+  background-color: rgb(var(--bridal-bg-rgb) / 0.95) !important;
+}
+
+html.dark .bg-bridal-surface {
+  background-color: var(--bridal-surface) !important;
+}
+html.dark .bg-bridal-surface\/70 {
+  background-color: rgb(var(--bridal-surface-rgb) / 0.7) !important;
+}
+html.dark .bg-bridal-surface\/80 {
+  background-color: rgb(var(--bridal-surface-rgb) / 0.85) !important;
+}
+html.dark .bg-bridal-surface\/90 {
+  background-color: rgb(var(--bridal-surface-rgb) / 0.9) !important;
+}
+html.dark .bg-bridal-surface\/95 {
+  background-color: rgb(var(--bridal-surface-rgb) / 0.95) !important;
+}
+
+html.dark .bg-bridal-cream {
+  background-color: var(--bridal-cream) !important;
+}
+html.dark .bg-bridal-cream\/50 {
+  background-color: rgb(var(--bridal-cream-rgb) / 0.5) !important;
+}
+html.dark .bg-bridal-cream\/60 {
+  background-color: rgb(var(--bridal-cream-rgb) / 0.6) !important;
+}
+html.dark .bg-bridal-cream\/70 {
+  background-color: rgb(var(--bridal-cream-rgb) / 0.75) !important;
+}
+html.dark .bg-bridal-cream\/80 {
+  background-color: rgb(var(--bridal-cream-rgb) / 0.85) !important;
+}
+
+html.dark .bg-bridal-roseLight {
+  background-color: var(--bridal-rose-light) !important;
+}
+html.dark .bg-bridal-roseLight\/40 {
+  background-color: rgb(var(--bridal-rose-light-rgb) / 0.45) !important;
+}
+html.dark .bg-bridal-roseLight\/50 {
+  background-color: rgb(var(--bridal-rose-light-rgb) / 0.55) !important;
+}
+html.dark .bg-bridal-roseLight\/60 {
+  background-color: rgb(var(--bridal-rose-light-rgb) / 0.65) !important;
+}
+html.dark .bg-bridal-roseLight\/70 {
+  background-color: rgb(var(--bridal-rose-light-rgb) / 0.75) !important;
+}
+html.dark .bg-bridal-roseLight\/80 {
+  background-color: rgb(var(--bridal-rose-light-rgb) / 0.85) !important;
+}
+
+html.dark .bg-bridal-goldLight {
+  background-color: var(--bridal-gold-light) !important;
+}
+html.dark .bg-bridal-goldLight\/40 {
+  background-color: rgb(var(--bridal-gold-light-rgb) / 0.45) !important;
+}
+html.dark .bg-bridal-goldLight\/50 {
+  background-color: rgb(var(--bridal-gold-light-rgb) / 0.55) !important;
+}
+
+html.dark .bg-bridal-sageLight {
+  background-color: var(--bridal-sage-light) !important;
+}
+html.dark .bg-bridal-sageLight\/50 {
+  background-color: rgb(var(--bridal-sage-light-rgb) / 0.5) !important;
+}
+html.dark .bg-bridal-sageLight\/55 {
+  background-color: rgb(var(--bridal-sage-light-rgb) / 0.55) !important;
+}
+html.dark .bg-bridal-sageLight\/60 {
+  background-color: rgb(var(--bridal-sage-light-rgb) / 0.65) !important;
+}
+
+html.dark .bg-bridal-border {
+  background-color: var(--bridal-border) !important;
+}
+html.dark .bg-bridal-border\/70 {
+  background-color: rgb(var(--bridal-border-rgb) / 0.7) !important;
+}
+
+/* Hover Backgrounds */
+html.dark .hover\:bg-bridal-cream:hover {
+  background-color: var(--bridal-cream) !important;
+}
+html.dark .hover\:bg-bridal-surface:hover {
+  background-color: var(--bridal-surface) !important;
+}
+html.dark .hover\:bg-bridal-roseLight:hover {
+  background-color: var(--bridal-rose-light) !important;
+}
+html.dark .hover\:bg-bridal-roseLight\/60:hover {
+  background-color: rgb(var(--bridal-rose-light-rgb) / 0.6) !important;
+}
+html.dark .hover\:bg-bridal-roseLight\/80:hover {
+  background-color: rgb(var(--bridal-rose-light-rgb) / 0.8) !important;
+}
+html.dark .hover\:bg-bridal-goldLight\/50:hover {
+  background-color: rgb(var(--bridal-gold-light-rgb) / 0.5) !important;
+}
+
+/* Text Colors */
+html.dark .text-bridal-charcoal {
+  color: var(--bridal-charcoal) !important;
+}
+html.dark .text-bridal-mauve {
+  color: var(--bridal-mauve) !important;
+}
+html.dark .text-bridal-mauve\/50 {
+  color: rgb(var(--bridal-mauve-rgb) / 0.5) !important;
+}
+html.dark .text-bridal-mauve\/70 {
+  color: rgb(var(--bridal-mauve-rgb) / 0.7) !important;
+}
+html.dark .placeholder\:text-bridal-mauve\/70::placeholder,
+html.dark .placeholder\:text-bridal-mauve\/60::placeholder {
+  color: rgb(var(--bridal-mauve-rgb) / 0.65) !important;
+}
+html.dark .text-bridal-rose {
+  color: var(--bridal-rose) !important;
+}
+html.dark .text-bridal-roseDark {
+  color: var(--bridal-rose-dark) !important;
+}
+html.dark .text-bridal-gold {
+  color: var(--bridal-gold) !important;
+}
+html.dark .text-bridal-amber {
+  color: var(--bridal-amber) !important;
+}
+html.dark .text-bridal-sage {
+  color: var(--bridal-sage) !important;
+}
+html.dark .text-bridal-sageDark {
+  color: var(--bridal-sage-dark) !important;
+}
+html.dark .hover\:text-bridal-charcoal:hover {
+  color: var(--bridal-charcoal) !important;
+}
+html.dark .hover\:text-bridal-rose:hover {
+  color: var(--bridal-rose) !important;
+}
+
+/* Borders */
+html.dark .border-bridal-border {
+  border-color: var(--bridal-border) !important;
+}
+html.dark .border-bridal-border\/60 {
+  border-color: rgb(var(--bridal-border-rgb) / 0.6) !important;
+}
+html.dark .border-bridal-border\/70 {
+  border-color: rgb(var(--bridal-border-rgb) / 0.7) !important;
+}
+html.dark .border-bridal-border\/80 {
+  border-color: rgb(var(--bridal-border-rgb) / 0.8) !important;
+}
+
+/* Gradient Stops (from-*, via-*, to-*) */
+html.dark .from-bridal-surface {
+  --tw-gradient-from: var(--bridal-surface) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(var(--bridal-surface-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html.dark .from-bridal-roseLight {
+  --tw-gradient-from: var(--bridal-rose-light) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(var(--bridal-rose-light-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html.dark .from-bridal-roseLight\/60 {
+  --tw-gradient-from: rgb(var(--bridal-rose-light-rgb) / 0.65) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(var(--bridal-rose-light-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html.dark .from-bridal-roseLight\/70 {
+  --tw-gradient-from: rgb(var(--bridal-rose-light-rgb) / 0.75) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(var(--bridal-rose-light-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html.dark .from-bridal-goldLight {
+  --tw-gradient-from: var(--bridal-gold-light) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(var(--bridal-gold-light-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html.dark .from-bridal-goldLight\/70 {
+  --tw-gradient-from: rgb(var(--bridal-gold-light-rgb) / 0.75) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(var(--bridal-gold-light-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html.dark .from-bridal-sageLight\/70 {
+  --tw-gradient-from: rgb(var(--bridal-sage-light-rgb) / 0.75) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(var(--bridal-sage-light-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+html.dark .via-bridal-surface {
+  --tw-gradient-to: rgb(var(--bridal-surface-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--bridal-surface) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+html.dark .via-bridal-cream {
+  --tw-gradient-to: rgb(var(--bridal-cream-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--bridal-cream) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+html.dark .via-bridal-bg {
+  --tw-gradient-to: rgb(var(--bridal-bg-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--bridal-bg) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+html.dark .via-bridal-roseLight\/60 {
+  --tw-gradient-to: rgb(var(--bridal-rose-light-rgb) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), rgb(var(--bridal-rose-light-rgb) / 0.65) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+
+html.dark .to-bridal-surface {
+  --tw-gradient-to: var(--bridal-surface) var(--tw-gradient-to-position) !important;
+}
+html.dark .to-bridal-cream {
+  --tw-gradient-to: var(--bridal-cream) var(--tw-gradient-to-position) !important;
+}
+html.dark .to-bridal-roseLight {
+  --tw-gradient-to: var(--bridal-rose-light) var(--tw-gradient-to-position) !important;
+}
+html.dark .to-bridal-roseLight\/70 {
+  --tw-gradient-to: rgb(var(--bridal-rose-light-rgb) / 0.75) var(--tw-gradient-to-position) !important;
+}
+html.dark .to-bridal-goldLight\/50 {
+  --tw-gradient-to: rgb(var(--bridal-gold-light-rgb) / 0.5) var(--tw-gradient-to-position) !important;
+}
+html.dark .to-bridal-goldLight\/60 {
+  --tw-gradient-to: rgb(var(--bridal-gold-light-rgb) / 0.6) var(--tw-gradient-to-position) !important;
+}
+
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: var(--bridal-cream);
+  color: var(--bridal-charcoal);
+  border-color: var(--bridal-border);
 }
 
 /* Hide scrollbars on horizontal filter pill rows while preserving touch scrolling */

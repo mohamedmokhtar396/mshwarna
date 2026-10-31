@@ -14,7 +14,12 @@ import {
   Home,
   Gift,
   Star,
-  Package
+  Package,
+  Wrench,
+  Sofa,
+  Watch,
+  Car,
+  Briefcase
 } from 'lucide-react';
 
 export const CATEGORY_ICON_MAP = {
@@ -32,7 +37,12 @@ export const CATEGORY_ICON_MAP = {
   Home,
   Gift,
   Star,
-  Package
+  Package,
+  Wrench,
+  Sofa,
+  Watch,
+  Car,
+  Briefcase
 };
 
 export const AVAILABLE_CATEGORY_ICONS = [
@@ -41,12 +51,15 @@ export const AVAILABLE_CATEGORY_ICONS = [
   { name: 'Utensils', label: 'مطبخ', labelEn: 'Kitchen' },
   { name: 'Wine', label: 'مائدة ونيش', labelEn: 'Tableware' },
   { name: 'BedDouble', label: 'مفروشات', labelEn: 'Bedding' },
-  { name: 'Shirt', label: 'ملابس', labelEn: 'Apparel' },
-  { name: 'Sparkles', label: 'عناية وتجميل', labelEn: 'Beauty' },
-  { name: 'Lamp', label: 'ديكور وإضاءة', labelEn: 'Decor' },
-  { name: 'Gem', label: 'مجوهرات وشبكة', labelEn: 'Jewelry' },
-  { name: 'Gift', label: 'تجهيزات الفرح', labelEn: 'Wedding' },
-  { name: 'Home', label: 'أثاث ومنزل', labelEn: 'Furniture' },
+  { name: 'Shirt', label: 'ملابس وبدل', labelEn: 'Apparel' },
+  { name: 'Sparkles', label: 'عناية وتجميل', labelEn: 'Grooming & Beauty' },
+  { name: 'Lamp', label: 'ديكور وإضاءة', labelEn: 'Decor & Lighting' },
+  { name: 'Sofa', label: 'موبيليا وأثاث', labelEn: 'Furniture' },
+  { name: 'Wrench', label: 'تشطيبات الشقة', labelEn: 'Apartment Finishing' },
+  { name: 'Gem', label: 'شبكة وذهب', labelEn: 'Gold & Jewelry' },
+  { name: 'Gift', label: 'القاعة والفرح', labelEn: 'Wedding & Venue' },
+  { name: 'Home', label: 'تجهيزات منزل', labelEn: 'Home Setup' },
+  { name: 'Watch', label: 'إكسسوارات وساعات', labelEn: 'Accessories' },
   { name: 'ShoppingBag', label: 'مشتريات', labelEn: 'Shopping' },
   { name: 'Heart', label: 'مفضلة', labelEn: 'Favorites' }
 ];
@@ -59,7 +72,11 @@ export const AVAILABLE_CATEGORY_COLORS = [
   '#84A98C',
   '#E07A5F',
   '#C98CA7',
-  '#9A8C98'
+  '#9A8C98',
+  '#1E40AF',
+  '#2563EB',
+  '#0F766E',
+  '#334155'
 ];
 
 export function CategoryIcon({ iconName, className = 'w-6 h-6', style }) {
