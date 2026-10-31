@@ -1,0 +1,21 @@
+{
+  "name": "رفيقة العروسة - لتنظيم ومتابعة الجهاز",
+  "short_name": "رفيقة العروسة",
+  "description": "التطبيق الأول لتنظيم ومتابعة جهاز العروسة والميزانية والأقساط بدون إنترنت",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFDF9",
+  "theme_color": "#D88C9A",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "/bridal-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
