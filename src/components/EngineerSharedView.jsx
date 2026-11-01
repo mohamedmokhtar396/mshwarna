@@ -291,11 +291,12 @@ export default function EngineerSharedView({
                       </td>
                       <td className="border border-bridal-border px-3 py-2 font-bold">
                         <div>{ex.title}</div>
-                        {ex.quantityText && (
-                          <span className="text-[11px] text-bridal-mauve">
-                            الكمية: {ex.quantityText}
-                          </span>
-                        )}
+                        <div className="flex flex-wrap gap-2 text-[11px] text-bridal-mauve mt-0.5">
+                          {ex.quantityText && <span>الكمية: {ex.quantityText}</span>}
+                          {Number(ex.unitPrice) > 0 && (
+                            <span>• سعر المفرد: {formatCurrency(ex.unitPrice, 'ar')} ج.م</span>
+                          )}
+                        </div>
                       </td>
                       <td className="border border-bridal-border px-3 py-2">
                         {ex.supplierName || '—'}

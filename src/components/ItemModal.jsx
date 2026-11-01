@@ -424,6 +424,11 @@ export default function ItemModal({
                       placeholder="0"
                       className="w-full px-3.5 py-2 rounded-xl bg-bridal-cream/50 border border-bridal-border focus:border-bridal-rose outline-none text-sm font-bold text-bridal-charcoal"
                     />
+                    {Number(formData.actualPrice) > 0 && Number(formData.requiredQty || 1) > 1 && (
+                      <span className="text-[10px] font-bold text-bridal-mauve block mt-1">
+                        (سعر القطعة المفردة: {formatCurrency(Math.round(Number(formData.actualPrice) / Number(formData.requiredQty)), lang)} {t.currency})
+                      </span>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-bridal-mauve mb-1">
